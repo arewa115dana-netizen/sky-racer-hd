@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.3.2（Phase3 Step3-2）
+  バージョン : 0.3.3（Phase3 Step3-3）
   メモ       : 天空神殿コースを、ドット絵のキャラクターで走る。背景つき。
                空中区間はまだ自動で滑空する（上下操作はPhase6）
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
@@ -217,7 +217,11 @@ export class Game {
     if (this.state === 'TEST') {
       const input = this.input.getState();
       this.player.applyInput(input);
+      const wasRespawning = this.player.state === 'respawn';
       this.player.step(dt);
+      if (!wasRespawning && this.player.state === 'respawn') {
+        this.debug.log('コースアウト！');
+      }
 
       // ブーストが始まった瞬間に音を鳴らす
       if (this.player.boostTime > this.lastBoostTime + 0.01) {
@@ -239,7 +243,8 @@ export class Game {
                          '  ' + AREA_NAMES[this.track.areaAt(p.s)] +
                          (this.track.zoneAt(p.s) === 'air' ? '（空中）' : '');
     this.debugLines[3] = 'ゲージ ' + Math.round(p.gauge * 100) + '%  ブースト残 ' +
-                         p.boostTime.toFixed(1) + (p.wallHit ? '  壁' : '');
+                         p.boostTime.toFixed(1) + (p.wallHit ? '  壁' : '') +
+                         '  状態 ' + p.state + '  落下 ' + p.fallCount + '回';
     this.debugLines[4] = this.quality.describe() + '  音 ' + (this.audio.unlocked ? 'ON' : '未');
   }
 
@@ -248,11 +253,22 @@ export class Game {
     if (this.state === 'TEST') {
       // 順番が大事：位置を決める → カメラを動かす → 絵をカメラへ向ける
       this.player.computeRenderPose(alpha);
-      this.cameraRig.follow(this.player, this.track, frameTime);
+      if (this.player.justRespawned) {
+        // 復帰した瞬間はカメラをすぐ後ろへ合わせ直す
+        this.player.justRespawned = false;
+        this.cameraRig.snap(this.player);
+      } else {
+        this.cameraRig.follow(this.player, this.track, frameTime);
+      }
       this.environment.update(frameTime, this.camera.position);
       this.playerSprite.update(this.player, this.camera, frameTime);
-      // 空中では足元の影を消す（下に地面がないため）
-      this.playerSprite.shadow.visible = this.track.zoneAt(this.player.s) === 'ground';
+      // 空中と落下中は足元の影を消す（下に地面がないため）
+      this.playerSprite.shadow.visible =
+        this.track.zoneAt(this.player.s) === 'ground' && this.player.state !== 'respawn';
+      // 落ちきったら隠す。復帰直後は点滅させる
+      const blinkOff = this.player.invincibleTime > 0 &&
+        Math.floor(this.player.invincibleTime * 10) % 2 === 0;
+      this.playerSprite.object3d.visible = !this.player.isHidden() && !blinkOff;
       this.audio.setEngine(this.loop.paused ? 0 : this.player.getSpeedRatio());
     }
 
