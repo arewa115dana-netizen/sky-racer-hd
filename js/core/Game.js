@@ -3,9 +3,10 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.3.3（Phase3 Step3-3）
-  メモ       : 天空神殿コースを、ドット絵のキャラクターで走る。背景つき。
+  バージョン : 0.4.1（Phase4 Step4-1）
+  メモ       : 天空神殿コースを、プレイヤー1人＋CPU5人の6人で走る。
                空中区間はまだ自動で滑空する（上下操作はPhase6）
+               カウントダウン・順位・ゴールはPhase5で追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
 */
 
@@ -25,6 +26,7 @@ import { RacerSprite } from '../entities/RacerSprite.js';
 import { CHARACTERS } from '../entities/Characters.js';
 import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
+import { AIController } from '../ai/AIController.js';
 
 export class Game {
   constructor(container) {
@@ -50,11 +52,14 @@ export class Game {
 
     this.track = null;
     this.atlas = null;
+    this.racers = [];          // 全レーサー（プレイヤーを含む6人）
+    this.sprites = [];         // racers と同じ順番の見た目
+    this.ais = [];             // racers と同じ順番のCPU思考（プレイヤーは null）
     this.player = null;
     this.playerSprite = null;
 
     this.versionEl = document.getElementById('version');
-    this.debugLines = ['', '', '', '', ''];
+    this.debugLines = ['', '', '', '', '', ''];
   }
 
   // ---- 起動 ----
@@ -78,16 +83,8 @@ export class Game {
     // 全キャラクターのドット絵を1枚の画像にまとめて作る
     this.atlas = buildAtlas(CHARACTERS);
 
-    this.player = new Racer({
-      id: 0,
-      character: CHARACTERS[0],
-      track: this.track,
-      isPlayer: true
-    });
-    this.player.placeAt(0, 0);
-
-    this.playerSprite = new RacerSprite(this.atlas, CHARACTERS[0].id);
-    this.scene.add(this.playerSprite.object3d);
+    // 6人のレーサーを作り、スタートラインの後ろに並べる
+    this.createRacers(0);
 
     this.cameraRig = new CameraRig(this.camera);
     this.player.computeRenderPose(1);
@@ -136,6 +133,53 @@ export class Game {
     this.player.setCharacter(ch);
     this.playerSprite.setCharacter(ch.id);
     this.debug.log(ch.name + '（' + ch.type + '）');
+  }
+
+  // ---- レーサーを作る ----
+  // playerCharIndex：プレイヤーのキャラクター番号。CPUは残りの5人
+  createRacers(playerCharIndex) {
+    const r = CONFIG.race;
+    const others = CHARACTERS.filter((_, i) => i !== playerCharIndex);
+    const order = [];
+    let cpu = 0;
+    for (let slot = 0; slot < r.racerCount; slot += 1) {
+      if (slot === r.playerGridSlot) {
+        order.push({ character: CHARACTERS[playerCharIndex], isPlayer: true });
+      } else {
+        order.push({ character: others[cpu % others.length], isPlayer: false, cpuIndex: cpu });
+        cpu += 1;
+      }
+    }
+
+    order.forEach((entry, slot) => {
+      const racer = new Racer({
+        id: slot,
+        character: entry.character,
+        track: this.track,
+        isPlayer: entry.isPlayer
+      });
+      // スタートグリッド：2列で、前の人ほどスタートラインに近い
+      const row = Math.floor(slot / 2);
+      const side = slot % 2 === 0 ? -1 : 1;
+      racer.placeAt(-(r.gridFront + row * r.gridRowGap), side * r.gridSideOffset);
+
+      const sprite = new RacerSprite(this.atlas, entry.character.id);
+      sprite.time = slot * 0.7;   // ふわふわの動きをずらす
+      this.scene.add(sprite.object3d);
+
+      let ai = null;
+      if (!entry.isPlayer) {
+        const p = CONFIG.ai.personalities[entry.cpuIndex % CONFIG.ai.personalities.length];
+        ai = new AIController(racer, this.track, { ...p, seed: slot * 3.1 });
+      } else {
+        this.player = racer;
+        this.playerSprite = sprite;
+      }
+
+      this.racers.push(racer);
+      this.sprites.push(sprite);
+      this.ais.push(ai);
+    });
   }
 
   // ---- 描画の準備 ----
@@ -216,9 +260,16 @@ export class Game {
 
     if (this.state === 'TEST') {
       const input = this.input.getState();
-      this.player.applyInput(input);
       const wasRespawning = this.player.state === 'respawn';
-      this.player.step(dt);
+
+      // 全員：入力を決めて（プレイヤーは指・キー、CPUは思考）、同じ物理で動かす
+      for (let i = 0; i < this.racers.length; i += 1) {
+        const racer = this.racers[i];
+        const ai = this.ais[i];
+        racer.applyInput(ai ? ai.think(dt) : input);
+        racer.step(dt);
+      }
+
       if (!wasRespawning && this.player.state === 'respawn') {
         this.debug.log('コースアウト！');
       }
@@ -238,7 +289,7 @@ export class Game {
     this.debugLines[0] = '旋回 ' + fmt(input.steer) + '  上下 ' + fmt(input.pitch);
     this.debugLines[1] = '速度 ' + (p.speed * 3.6).toFixed(0) + ' km/h  最高 ' +
                          (p.maxSpeed * 3.6).toFixed(0) + ' km/h';
-    this.debugLines[2] = '周回 ' + p.lap + '  位置 ' + p.s.toFixed(0) + '/' +
+    this.debugLines[2] = '周回 ' + Math.max(0, p.lap) + '  位置 ' + p.s.toFixed(0) + '/' +
                          this.track.length.toFixed(0) + ' m  横 ' + fmt(p.x) +
                          '  ' + AREA_NAMES[this.track.areaAt(p.s)] +
                          (this.track.zoneAt(p.s) === 'air' ? '（空中）' : '');
@@ -246,6 +297,14 @@ export class Game {
                          p.boostTime.toFixed(1) + (p.wallHit ? '  壁' : '') +
                          '  状態 ' + p.state + '  落下 ' + p.fallCount + '回';
     this.debugLines[4] = this.quality.describe() + '  音 ' + (this.audio.unlocked ? 'ON' : '未');
+    // 仮の順位（走った距離で比べる。本格的な順位はPhase5）
+    let rank = 1;
+    let cpuFalls = 0;
+    for (const r of this.racers) {
+      if (r !== p && r.distance > p.distance) rank += 1;
+      if (r !== p) cpuFalls += r.fallCount;
+    }
+    this.debugLines[5] = '仮の順位 ' + rank + '/' + this.racers.length + '  CPUの落下 ' + cpuFalls + '回';
   }
 
   // ---- 描画（毎フレーム） ----
@@ -261,14 +320,13 @@ export class Game {
         this.cameraRig.follow(this.player, this.track, frameTime);
       }
       this.environment.update(frameTime, this.camera.position);
-      this.playerSprite.update(this.player, this.camera, frameTime);
-      // 空中と落下中は足元の影を消す（下に地面がないため）
-      this.playerSprite.shadow.visible =
-        this.track.zoneAt(this.player.s) === 'ground' && this.player.state !== 'respawn';
-      // 落ちきったら隠す。復帰直後は点滅させる
-      const blinkOff = this.player.invincibleTime > 0 &&
-        Math.floor(this.player.invincibleTime * 10) % 2 === 0;
-      this.playerSprite.object3d.visible = !this.player.isHidden() && !blinkOff;
+
+      // 全員の見た目（CPUの位置もここで決める）
+      for (let i = 0; i < this.racers.length; i += 1) {
+        const racer = this.racers[i];
+        if (racer !== this.player) racer.computeRenderPose(alpha);
+        this.updateSprite(racer, this.sprites[i], frameTime);
+      }
       this.audio.setEngine(this.loop.paused ? 0 : this.player.getSpeedRatio());
     }
 
@@ -291,6 +349,17 @@ export class Game {
       pixelRatio: this.quality.pixelRatio,
       lines: this.debugLines
     });
+  }
+
+  // レーサー1人の見た目を更新する
+  updateSprite(racer, sprite, frameTime) {
+    racer.justRespawned = racer === this.player ? racer.justRespawned : false;
+    sprite.update(racer, this.camera, frameTime);
+    // 空中と落下中は足元の影を消す（下に地面がないため）
+    sprite.shadow.visible = this.track.zoneAt(racer.s) === 'ground' && racer.state !== 'respawn';
+    // 落ちきったら隠す。復帰直後は点滅させる
+    const blinkOff = racer.invincibleTime > 0 && Math.floor(racer.invincibleTime * 10) % 2 === 0;
+    sprite.object3d.visible = !racer.isHidden() && !blinkOff;
   }
 }
 
