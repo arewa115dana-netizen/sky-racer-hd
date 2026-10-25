@@ -2,7 +2,7 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.3.3（Phase3 Step3-3）
+  バージョン : 0.4.2（Phase4 Step4-2）
   メモ       : 状態は 走行（drive）・空中（air）・復帰中（respawn）。
                空中はまだ自動で滑空（上下操作はPhase6）、ドリフトはPhase7で追加する
                柵のない道の端から外に出ると落下し、少し手前に戻って再開する
@@ -46,6 +46,8 @@ export class Racer {
     this.boostTime = 0;
     this.boostRequested = false;
     this.wallHit = false;
+    this.bumped = false;       // 他のレーサーとぶつかっているか（Collision が設定）
+    this.speedScale = 1;       // 最高速の倍率（CPUの追い上げ補正に使う）
 
     // コースアウトと復帰
     this.respawnTimer = 0;     // 落ちてからの時間
@@ -135,7 +137,8 @@ export class Racer {
     const boosting = this.boostTime > 0;
 
     // 速さ：自動アクセルで目標の速さへ近づける
-    let target = boosting ? this.maxSpeed * r.boostMultiplier : this.maxSpeed;
+    const top = this.maxSpeed * this.speedScale;
+    let target = boosting ? top * r.boostMultiplier : top;
     if (input.brake) target = 0;
     if (this.speed < target) {
       const a = boosting ? r.boostAccel : this.accel;
