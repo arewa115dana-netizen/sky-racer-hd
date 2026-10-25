@@ -3,7 +3,7 @@
   保存場所   : /js/ui
   役割       : レース中の画面表示。順位・周回・タイム・ブーストゲージ・
                カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）・結果表
-  バージョン : 0.5.2（Phase5 Step5-2）
+  バージョン : 0.5.3（Phase5 Step5-2 修正）
   メモ       : 表示はHTMLの文字で行う（3Dより軽い）。
                変わったときだけ書き換えて、無駄な処理をしない。
                見た目の仕上げはPhase9で行う
@@ -109,11 +109,24 @@ export class HUD {
     const box = document.createElement('div');
     box.className = 'results';
     box.innerHTML = html;
-    this.root.appendChild(box);
+    // 結果表はHUDの中ではなく、ページに直接置く。
+    // HUDの中に置くと、HUDごと操作部品（スティック・ボタン）の下に重なり、押せなくなるため
+    document.body.appendChild(box);
     this.resultsEl = box;
 
     const button = box.querySelector('.results-retry');
     button.addEventListener('click', () => onRetry());
+  }
+
+  // 片付け（HUDと結果表を画面から取り除く）
+  dispose() {
+    if (this.resultsEl && this.resultsEl.parentNode) {
+      this.resultsEl.parentNode.removeChild(this.resultsEl);
+    }
+    this.resultsEl = null;
+    if (this.root.parentNode) {
+      this.root.parentNode.removeChild(this.root);
+    }
   }
 
   setVisible(visible) {
