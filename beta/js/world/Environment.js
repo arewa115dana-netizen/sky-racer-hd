@@ -1,28 +1,35 @@
 /*
   ファイル名 : Environment.js
   保存場所   : /js/world
-  役割       : 背景。空・太陽・雲海・浮遊島・遠景の島・古代遺跡のアーチ・神殿の柱と門。
-               浮遊島の上とコースの路肩には、ドット絵の草木を置く（Decor.js）
-               遺跡と神殿の建物は Buildings.js、本殿・かがり火・旗・ツタ・浮かぶ瓦礫は Landmarks.js が作る
+  役割       : 背景。空・太陽・雲海・浮遊島・遠景の島（どのコースにもある物）。
+               浮遊島の上とコースの路肩には、ドット絵の草木を置く（Decor.js。種類はコースごと）
+               コースだけの建物や名所（天空神殿なら遺跡・神殿・かがり火）は、コースの scenery が作る
                スマホで軽く動くよう、重い後処理を使わず「見た目だけ再現」する
                （ぼかした遠景で被写界深度風、光る板で軽量ブルーム風）
-  バージョン : 0.11.2（Phase11 Step11-2）
+  バージョン : 1.13.0（Phase13 Step13-1：コースごとに作り直せるように）
+  メモ       : 作った物はすべて this.root（1つのまとまり）に入れる。dispose で丸ごと片付けられる
 */
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { buildDecor } from './Decor.js';
-import { buildBuildings } from './Buildings.js';
-import { buildLandmarks } from './Landmarks.js';
 
 export class Environment {
-  constructor(scene, quality, track) {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {Quality} quality
+   * @param {Track} track
+   * @param {object} course コース（Courses.js）。decor = 草木の組、scenery = コースだけの建物を作る関数
+   */
+  constructor(scene, quality, track, course) {
     this.scene = scene;
     this.quality = quality;
     this.track = track;
     this.cloudLayers = [];
     this.time = 0;
     this.islandSpots = [];   // 置いた浮遊島の位置と大きさ（草木を置くのに使う）
+    this.root = new THREE.Group();
+    scene.add(this.root);
 
     const e = CONFIG.environment;
     const low = quality.level === 'low';
@@ -32,23 +39,27 @@ export class Environment {
     scene.fog = new THREE.Fog(e.horizonColor, e.fogNear, e.fogFar);
 
     this.sky = this.buildSky();
-    scene.add(this.sky);
+    this.root.add(this.sky);
 
     this.sun = this.buildSun();
-    scene.add(this.sun);
+    this.root.add(this.sun);
 
     this.buildClouds(low ? 1 : 2);
-    scene.add(this.buildFarIslands(low ? 6 : 10));
-    scene.add(this.buildIslands(low ? Math.round(e.islandCount / 2) : e.islandCount));
-    // 遺跡のアーチ・神殿の柱・ゴールの門
-    const buildings = buildBuildings(track);
-    scene.add(buildings.group);
-    // 本殿・かがり火・旗・ツタ・浮かぶ瓦礫（炎と火の粉は毎フレーム動かす）
-    this.landmarks = buildLandmarks(track, buildings.anchors, quality.level);
-    scene.add(this.landmarks.group);
+    this.root.add(this.buildFarIslands(low ? 6 : 10));
+    this.root.add(this.buildIslands(low ? Math.round(e.islandCount / 2) : e.islandCount));
+    // コースだけの建物・名所（毎フレーム動かす物があれば update を持つ）
+    this.scenery = course && course.scenery ? course.scenery(track, quality.level) : null;
+    if (this.scenery) this.root.add(this.scenery.group);
     // 草木（浮遊島の上と、コースの路肩）
-    this.decor = buildDecor(track, this.islandSpots, quality.level);
-    scene.add(this.decor);
+    this.decor = buildDecor(track, this.islandSpots, quality.level, course ? course.decor : undefined);
+    this.root.add(this.decor);
+  }
+
+  // ---- 片付け（別のコースに切り替えるとき）。形・材質・画像を全部手放す ----
+  dispose() {
+    this.scene.remove(this.root);
+    disposeTree(this.root);
+    this.root = null;
   }
 
   // ---- 自動軽量化（重い端末で、Game.js から1段ずつ呼ばれる）。減らした物があれば true ----
@@ -77,7 +88,7 @@ export class Environment {
   update(dt, cameraPosition) {
     const e = CONFIG.environment;
     this.time += dt;
-    this.landmarks.update(dt);
+    if (this.scenery && this.scenery.update) this.scenery.update(dt);
 
     // 空と太陽はカメラについて動かす（どこまで行っても届かない遠さに見せる）
     this.sky.position.copy(cameraPosition);
@@ -124,7 +135,7 @@ export class Environment {
   // ---- 太陽（光がにじむ板。軽量ブルーム風） ----
   buildSun() {
     const e = CONFIG.environment;
-    const tex = makeGlowTexture(128, 'rgba(255,250,225,1)', 'rgba(255,230,170,0)');
+    const tex = makeGlowTexture(128, e.sunGlow, 'rgba(255,230,170,0)');
     const mat = new THREE.SpriteMaterial({
       map: tex,
       blending: THREE.AdditiveBlending,
@@ -151,13 +162,14 @@ export class Environment {
       geo.rotateX(-Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
+        color: e.cloudColor,
         transparent: true,
         opacity: i === 0 ? 0.95 : 0.7,
         depthWrite: false
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(center.x, e.cloudHeight - i * 14, center.z);
-      this.scene.add(mesh);
+      this.root.add(mesh);
       this.cloudLayers.push(mesh);
     }
   }
@@ -165,7 +177,7 @@ export class Environment {
   // ---- 遠景の島（あらかじめぼかしたシルエット。被写界深度風） ----
   buildFarIslands(count) {
     const e = CONFIG.environment;
-    const tex = makeFarIslandTexture();
+    const tex = makeFarIslandTexture(e.farIslandColor);
     const geo = new THREE.PlaneGeometry(1, 0.5);
     const mat = new THREE.MeshBasicMaterial({
       map: tex,
@@ -260,6 +272,22 @@ export class Environment {
 }
 
 // ---- 画像・形を作る関数 ----
+
+// まとまりの中の、形・材質・画像をすべて手放す（同じ物を何度手放しても問題ない）
+export function disposeTree(root) {
+  root.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    const list = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+    for (const m of list) {
+      for (const key of Object.keys(m)) {
+        const v = m[key];
+        if (v && v.isTexture) v.dispose();
+      }
+      m.dispose();
+    }
+    if (obj.isInstancedMesh && obj.dispose) obj.dispose();
+  });
+}
 
 // 毎回同じ並びになる乱数
 function seededRandom(seed) {
@@ -368,7 +396,7 @@ function makeCloudTexture(size, seed) {
 }
 
 // 遠景の島のシルエット（影のぼかしを使って、どのブラウザでもぼかす）
-function makeFarIslandTexture() {
+function makeFarIslandTexture(color) {
   const w = 256;
   const h = 128;
   const canvas = document.createElement('canvas');
@@ -377,7 +405,7 @@ function makeFarIslandTexture() {
   const ctx = canvas.getContext('2d');
   // 形そのものは画面の外に描き、ぼけた影だけを画面内に落とす
   const shift = 1000;
-  ctx.shadowColor = 'rgba(150, 180, 215, 0.9)';
+  ctx.shadowColor = color;
   ctx.shadowBlur = 10;
   ctx.shadowOffsetX = shift;
   ctx.fillStyle = '#000';

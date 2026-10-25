@@ -1,10 +1,11 @@
 /*
   ファイル名 : Screens.js
   保存場所   : /js/core
-  役割       : 画面の流れの管理。タイトル → キャラ選択 → レース、と一時停止メニュー。
-               設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラをスマホに保存して反映する。
-               画面に合わせてBGMを切り替える（タイトル・キャラ選択はタイトル曲、レースはレース曲）
-  バージョン : 1.0.0（Phase12 Step12-3）
+  役割       : 画面の流れの管理。タイトル → キャラ選択 → コース選択 → レース、と一時停止メニュー。
+               設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラ・コースを
+               スマホに保存して反映する。
+               画面に合わせてBGMを切り替える（タイトル・選択画面はタイトル曲、レースはコースの曲）
+  バージョン : 1.13.0（Phase13 Step13-2：コース選択）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -14,9 +15,13 @@ import { CONFIG } from '../config.js';
 import { CHARACTERS } from '../entities/Characters.js';
 import { Title } from '../ui/Title.js';
 import { CharacterSelect } from '../ui/CharacterSelect.js';
+import { CourseSelect } from '../ui/CourseSelect.js';
+import { COURSES, courseIndexOf } from '../courses/Courses.js';
+import { loadBest } from '../systems/Records.js';
 import { PauseMenu } from '../ui/Menu.js';
 
 const CHAR_KEY = 'skyRacer.character';
+const COURSE_KEY = 'skyRacer.course';
 const SETTINGS_KEY = 'skyRacer.settings';
 // 保存データの形の番号。1.0.0 でデバッグ表示の初期値を OFF にしたので、それより前の保存では
 // デバッグ表示の設定だけ初期値（OFF）に戻す
@@ -38,6 +43,7 @@ export class Screens {
     this.titlePoint = { x: 0, y: 0, z: 0 };
 
     this.charIndex = loadCharIndex();
+    this.courseIndex = loadCourseIndex();
     this.settings = loadSettings();
   }
 
@@ -130,8 +136,7 @@ export class Screens {
       onDecide: (index) => {
         this.charIndex = index;
         saveCharIndex(index);
-        this.leaveMenuMode();
-        g.startRace(index);
+        this.showCourseSelect();
       },
       onBack: () => this.showTitle(),
       onSound: (name) => g.audio.play(name),   // 'select'（選ぶ）・'decide'（決定）
@@ -141,10 +146,43 @@ export class Screens {
     });
   }
 
-  // ---- レースが始まったとき（Game.startRace から呼ばれる）：レース曲と、最終周・ゴールでの変化 ----
+  // ---- コース選択（キャラを決めた後） ----
+  showCourseSelect() {
+    const g = this.game;
+    this.enterMenuMode();
+    g.setState('SELECT');
+    const select = new CourseSelect({
+      courses: COURSES,
+      index: this.courseIndex,
+      getBest: (id) => loadBest(id),
+      onSound: (name) => g.audio.play(name),
+      onBack: () => this.showCharacterSelect(),
+      onDecide: (index) => {
+        this.courseIndex = index;
+        saveCourseIndex(index);
+        // 別のコースなら作り直す。重い処理の前に「準備中…」を画面に出しておく
+        const needLoad = !g.world || g.world.course !== COURSES[index];
+        if (needLoad) select.showLoading();
+        const go = () => {
+          if (needLoad) {
+            g.loadCourse(index);
+            this.titleTime = 0;
+          }
+          select.close();
+          this.leaveMenuMode();
+          g.startRace(this.charIndex);
+        };
+        // 表示が画面に出てから（2フレーム後に）作り始める
+        if (needLoad) requestAnimationFrame(() => requestAnimationFrame(go));
+        else go();
+      }
+    });
+  }
+
+  // ---- レースが始まったとき（Game.startRace から呼ばれる）：コースの曲と、最終周・ゴールでの変化 ----
   onRaceStart(session) {
     const audio = this.game.audio;
-    audio.playMusic('race');
+    audio.playMusic(session.course && session.course.music ? session.course.music : 'race');
     audio.setMusicTempo(1);
     session.race.on('finalLap', (racer) => {
       if (racer.isPlayer) audio.setMusicTempo(CONFIG.audio.finalLapTempo);
@@ -242,6 +280,22 @@ function loadCharIndex() {
     return Number.isInteger(v) && v >= 0 && v < CHARACTERS.length ? v : 0;
   } catch (e) {
     return 0;
+  }
+}
+
+function loadCourseIndex() {
+  try {
+    return courseIndexOf(window.localStorage.getItem(COURSE_KEY));
+  } catch (e) {
+    return 0;
+  }
+}
+
+function saveCourseIndex(index) {
+  try {
+    window.localStorage.setItem(COURSE_KEY, COURSES[index].id);
+  } catch (e) {
+    // 保存できなくても遊べるので何もしない
   }
 }
 

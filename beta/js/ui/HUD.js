@@ -3,7 +3,7 @@
   保存場所   : /js/ui
   役割       : レース中の画面表示。順位・周回・タイム・ブーストゲージ・ドリフトの溜まり・
                カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）・結果画面
-  バージョン : 0.9.4（Phase9 Step9-4）
+  バージョン : 1.13.0（Phase13 Step13-2：結果にコース名）
   メモ       : 表示はHTMLの文字で行う（3Dより軽い）。
                変わったときだけ書き換えて、無駄な処理をしない
 */
@@ -127,6 +127,7 @@ export class HUD {
     box.className = 'results screen';
     let html = '<div class="results-inner">' +
       '<div class="results-title">RESULT</div>' +
+      (o.courseName ? '<div class="results-course">' + o.courseName + '</div>' : '') +
       (me ? '<div class="results-mine place' + me.rank + '">' + me.rank + '位でゴール！</div>' : '') +
       '<div class="results-list">';
     o.rows.forEach((r, i) => {

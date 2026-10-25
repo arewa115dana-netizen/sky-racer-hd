@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 1.0.0（Phase12 Step12-3：完成版）
+  バージョン : 1.13.0（Phase13 Step13-1：コースを増やすための土台）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '1.0.0',
+  VERSION: '1.13.0',
 
   // ゲームループ
   loop: {
@@ -37,6 +37,9 @@ export const CONFIG = {
     cloudSize: 2000,        // 雲海の板の大きさ
     cloudRepeat: 7,         // 雲の画像を何回くり返すか
     cloudSpeed: 0.004,      // 雲が流れる速さ
+    cloudColor: 0xffffff,   // 雲海の色（白 = そのまま。夕焼けのコースならオレンジがかった色に）
+    sunGlow: 'rgba(255,250,225,1)',   // 太陽の光の中心の色
+    farIslandColor: 'rgba(150, 180, 215, 0.9)', // 遠景の島のシルエットの色（空の色になじませる）
     farIslandDistance: 360, // 遠景の島までの距離
     islandCount: 26,        // 浮遊島の数（画質lowでは半分）
     islandArea: 420,        // 浮遊島を散らす範囲（コース中心から±メートル）
@@ -49,6 +52,16 @@ export const CONFIG = {
     columnSpacing: 14,      // 神殿の柱の間隔（メートル）
     columnHeight: 11,       // 神殿の柱の高さ
     templeColor: 0xf3eee2   // 神殿の白い石の色
+  },
+
+  // 光（コースのテーマで変えられる。Phase13）
+  lights: {
+    hemiSky: 0xffffff,      // 空からの光の色
+    hemiGround: 0x5577aa,   // 下から照り返す光の色
+    hemiIntensity: 1.2,     // 空からの光の強さ
+    sunColor: 0xfff2cc,     // 太陽の光の色
+    sunIntensity: 1.6,      // 太陽の光の強さ
+    sunPosition: { x: 30, y: 50, z: 20 }  // 太陽の光が来る向き
   },
 
   // 画質（描画解像度は「端末の画素密度」と下の上限の小さい方）
