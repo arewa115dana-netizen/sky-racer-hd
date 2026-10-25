@@ -8,7 +8,7 @@
                  scenery … そのコースだけの建物・名所を作る関数（{ group, update(dt) } を返す）
                  music   … レース中の曲の名前（Music.js）
                をまとめる。ready: false のコースは「準備中」としてコース選択に表示だけする
-  バージョン : 1.13.0（Phase13 Step13-1）
+  バージョン : 1.16.0（Phase16：全7コース）
   メモ       : 新しいコースを足すときは、このファイルに1つ書き足す（形やテーマは別ファイルに分けてよい）
 */
 
@@ -21,6 +21,8 @@ import { DESERT_COURSE } from './desert.js';
 import { ICE_COURSE } from './ice.js';
 import { HARBOR_COURSE } from './harbor.js';
 import { VOLCANO_COURSE } from './volcano.js';
+import { OBSERVATORY_COURSE } from './observatory.js';
+import { MUSHROOM_COURSE } from './mushroom.js';
 
 export const COURSES = [
   {
@@ -48,9 +50,8 @@ export const COURSES = [
   ICE_COURSE,
   HARBOR_COURSE,
   VOLCANO_COURSE,
-  // ---- これから作るコース（準備中） ----
-  { id: 'observatory', ready: false, name: '星空の天文塔', sub: '光る水晶と、星の海を回る塔', stars: 4, color: '#b49cff' },
-  { id: 'mushroom', ready: false, name: 'キノコの森', sub: '巨大キノコと木の根の上を走る', stars: 3, color: '#8fe07a' }
+  OBSERVATORY_COURSE,
+  MUSHROOM_COURSE
 ];
 
 // id からコースの番号を探す（見つからなければ 0）
