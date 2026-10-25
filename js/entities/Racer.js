@@ -2,9 +2,9 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.4.2（Phase4 Step4-2）
+  バージョン : 0.6.1（Phase6 Step6-1）
   メモ       : 状態は 走行（drive）・空中（air）・復帰中（respawn）。
-               空中はまだ自動で滑空（上下操作はPhase6）、ドリフトはPhase7で追加する
+               空中では上下に動ける（飛行の能力で速さが変わる）。ドリフトはPhase7で追加する
                柵のない道の端から外に出ると落下し、少し手前に戻って再開する
 
   位置はコース基準座標で持つ
@@ -72,6 +72,9 @@ export class Racer {
     this.maxSpeed = r.baseMaxSpeed + (st.speed - 3) * r.maxSpeedPerStat;
     this.accel = r.baseAccel + (st.accel - 3) * r.accelPerStat;
     this.turnRate = r.baseTurnRate + (st.handling - 3) * r.turnPerStat;
+    // 飛行の能力：空中での上下の速さと、空中での最高速の倍率
+    this.climbRate = r.climbRate * (1 + (st.flight - 3) * r.climbPerStat);
+    this.airSpeedScale = 1 + (st.flight - 3) * r.airSpeedPerStat;
   }
 
   // 指定の位置に置く（スタート時・復帰時）
@@ -136,8 +139,9 @@ export class Racer {
     }
     const boosting = this.boostTime > 0;
 
-    // 速さ：自動アクセルで目標の速さへ近づける
-    const top = this.maxSpeed * this.speedScale;
+    // 速さ：自動アクセルで目標の速さへ近づける（空中では飛行の能力で変わる）
+    const inAir = track.zoneAt(this.s) === 'air';
+    const top = this.maxSpeed * this.speedScale * (inAir ? this.airSpeedScale : 1);
     let target = boosting ? top * r.boostMultiplier : top;
     if (input.brake) target = 0;
     if (this.speed < target) {
@@ -194,9 +198,43 @@ export class Racer {
       this.speed *= Math.max(0, 1 - r.wallFriction * dt);
     }
 
-    // 空中区間はまだ自動で中心線の高さを滑空する（上下操作はPhase6）
-    this.y = 0;
-    this.state = zone === 'air' ? 'air' : 'drive';
+    if (zone === 'air') {
+      this.stepFlight(dt);
+      this.state = 'air';
+    } else {
+      this.y = 0;
+      this.vy = 0;
+      this.state = 'drive';
+    }
+  }
+
+  // ---- 空中の上下の動き ----
+  stepFlight(dt) {
+    const r = CONFIG.racer;
+    const track = this.track;
+
+    // スティックの上下で、上下の速さの目標を決める（なめらかに近づける）
+    const targetVy = this.input.pitch * this.climbRate;
+    this.vy += (targetVy - this.vy) * Math.min(1, dt * r.pitchResponse);
+
+    // 着地アシスト：少し先が地上なら、高さを路面に寄せる
+    if (track.zoneAt(this.s + r.landingAssist) === 'ground') {
+      this.vy *= Math.max(0, 1 - dt * r.landingPull);
+      this.y += (0 - this.y) * Math.min(1, dt * r.landingPull);
+    }
+
+    this.y += this.vy * dt;
+
+    // 飛べる高さの範囲（端では止まるだけで、落ちない）
+    const yMin = track.yMinAt(this.s);
+    const yMax = track.yMaxAt(this.s);
+    if (this.y < yMin) {
+      this.y = yMin;
+      if (this.vy < 0) this.vy = 0;
+    } else if (this.y > yMax) {
+      this.y = yMax;
+      if (this.vy > 0) this.vy = 0;
+    }
   }
 
   // ---- コースアウトと復帰 ----
