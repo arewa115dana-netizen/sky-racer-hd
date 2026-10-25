@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.6.3（Phase6 Step6-3）
+  バージョン : 0.7.1（Phase7 Step7-1）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.6.3',
+  VERSION: '0.7.1',
 
   // ゲームループ
   loop: {
@@ -115,6 +115,19 @@ export const CONFIG = {
     pitchResponse: 4,    // 上下の入力への反応の速さ（大きいほどキビキビ）
     landingAssist: 30,   // 地上区間の何メートル手前から高さを路面に寄せるか
     landingPull: 3,      // 着地アシストの強さ
+    driftMinSpeed: 15,   // この速さ（メートル/秒）以上でないとドリフトできない
+    driftStartSteer: 0.35, // ドリフトを始めるのに必要な旋回の強さ（0〜1）
+    driftBaseTurn: 0.75, // ドリフト中の基本の曲がり（旋回入力なしのとき）
+    driftSteerRange: 0.4,// 旋回入力でドリフトの曲がりを変えられる幅
+    driftTurnScale: 1.35,// ドリフト中の曲がる力の倍率
+    driftSlide: 1.5,     // ドリフト中に外側へ滑る速さ（メートル/秒）
+    driftSpeedScale: 0.97, // ドリフト中の最高速の倍率
+    driftLevel1: 0.5,    // 青い火花になるまでの溜め（秒。ドリフトの能力3のとき）
+    driftLevel2: 1.1,    // オレンジの火花になるまでの溜め
+    driftChargePerStat: 0.3, // ドリフトの能力1段階あたりの溜まる速さの差（割合）
+    turboTime1: 0.6,     // 青のミニターボの時間（秒）
+    turboTime2: 1.1,     // オレンジのミニターボの時間（秒）
+    turboPerStat: 0.2,   // ドリフトの能力1段階あたりのミニターボの長さの差（割合）
     boostMultiplier: 1.35,// ブースト中の最高速の倍率
     boostAccel: 20,      // ブースト中の加速の強さ
     buttonBoostTime: 1.2,// ブーストボタン1回で加速する時間（秒）
@@ -188,6 +201,8 @@ export const CONFIG = {
     pitchDamping: 0.12,  // 上下の動きを落ち着かせる強さ
     ringLookAhead: 70,   // 何メートル先までのリングを狙うか
     ringAimChance: 0.85, // リングを狙う確率（腕前を掛ける）
+    driftCurvature: 0.02,// この曲がり具合（1/半径）より急なカーブでドリフトする（半径50 m以下）
+    driftChance: 0.9,    // ドリフトする確率（腕前を掛ける。カーブごとに決める）
     // CPU5人の性格（lineOffset: 好きな走行位置 -1=左〜1=右、skill: 腕前 0〜1）
     personalities: [
       { lineOffset: -0.6, skill: 0.92, heightBias: 3 },
