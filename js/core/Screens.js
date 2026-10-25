@@ -2,8 +2,9 @@
   ファイル名 : Screens.js
   保存場所   : /js/core
   役割       : 画面の流れの管理。タイトル → キャラ選択 → レース、と一時停止メニュー。
-               設定（音量・省電力・仕上げ処理・デバッグ表示）と、選んだキャラをスマホに保存して反映する
-  バージョン : 0.10.1（Phase10 Step10-1）
+               設定（音量・BGM・省電力・仕上げ処理・デバッグ表示）と、選んだキャラをスマホに保存して反映する。
+               画面に合わせてBGMを切り替える（タイトル・キャラ選択はタイトル曲、レースはレース曲）
+  バージョン : 0.10.2（Phase10 Step10-2）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -51,7 +52,9 @@ export class Screens {
 
   applySetting(key, value) {
     const g = this.game;
-    if (key === 'volume') {
+    if (key === 'music') {
+      g.audio.setMusicVolume(value / 10);
+    } else if (key === 'volume') {
       // 音を使えるようになる前でも、その音量で始まるように基準値も変える
       CONFIG.audio.masterVolume = value / 10;
       g.audio.setVolume(value / 10);
@@ -93,6 +96,7 @@ export class Screens {
     }
     this.enterMenuMode();
     g.setState('TITLE');
+    g.audio.playMusic('title');
     this.title = new Title(() => {
       this.title = null;
       // タップ（指を離した瞬間）の中で、もう一度確実に音を再開する
@@ -110,6 +114,7 @@ export class Screens {
     }
     this.enterMenuMode();
     g.setState('SELECT');
+    g.audio.playMusic('title');   // タイトルから来たときは同じ曲が続く
     new CharacterSelect({
       characters: CHARACTERS,
       atlasCanvas: g.atlas.texture.image,
@@ -122,6 +127,20 @@ export class Screens {
       },
       onBack: () => this.showTitle(),
       onSound: (name) => g.audio.play(name)   // 'select'（選ぶ）・'decide'（決定）
+    });
+  }
+
+  // ---- レースが始まったとき（Game.startRace から呼ばれる）：レース曲と、最終周・ゴールでの変化 ----
+  onRaceStart(session) {
+    const audio = this.game.audio;
+    audio.playMusic('race');
+    audio.setMusicTempo(1);
+    session.race.on('finalLap', (racer) => {
+      if (racer.isPlayer) audio.setMusicTempo(CONFIG.audio.finalLapTempo);
+    });
+    session.race.on('finish', (racer) => {
+      // ゴールしたら曲を止めて、ファンファーレを聞かせる
+      if (racer.isPlayer) audio.stopMusic(0.3);
     });
   }
 
@@ -216,6 +235,7 @@ function saveCharIndex(index) {
 function defaultSettings() {
   return {
     volume: Math.round(CONFIG.audio.masterVolume * 10),
+    music: Math.round(CONFIG.audio.musicVolume * 10),
     powerSave: CONFIG.quality.powerSave,
     postfx: CONFIG.postfx.enabled,
     debug: CONFIG.debug.show
@@ -234,6 +254,7 @@ function loadSettings() {
     // 読めなければ初期値のまま
   }
   settings.volume = Math.max(0, Math.min(10, Math.round(settings.volume)));
+  settings.music = Math.max(0, Math.min(10, Math.round(settings.music)));
   return settings;
 }
 
