@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.2.7（Phase2 Step2-7）
+  バージョン : 0.3.1（Phase3 Step3-1）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.2.7',
+  VERSION: '0.3.1',
 
   // ゲームループ
   loop: {
@@ -84,18 +84,31 @@ export const CONFIG = {
     gaugeRegen: 0.2      // ゲージの自然回復（1秒あたり）※Phase2の試走用。Phase6で0にしてリングで溜める
   },
 
-  // Phase2の試走用オーバルコース（Phase3で天空神殿コースに置き換える）
-  testTrack: {
-    straight: 120,       // 直線の長さ（メートル）
-    radius: 45,          // カーブの半径（メートル）
-    width: 14,           // 道幅（メートル）
-    postSpacing: 6       // 道の両端に並べる目印の杭の間隔（メートル）
-  },
-
-  // Phase2の試走場の地面（Phase3で置き換える）
-  test: {
-    groundSize: 400,     // 地面の一辺（メートル）
-    pillarCount: 60      // 目印の柱の本数
+  // コースの見た目（CourseBuilder が使う）
+  course: {
+    stripeLength: 4,     // 路面と縁石の明暗の縞の長さ（メートル）。スピード感を出す
+    stripeShade: 0.92,   // 縞の暗い方の明るさ（1 = 同じ）
+    curbWidth: 0.8,      // 縁石の幅（メートル）
+    curbLight: 0xf1e9d6, // 縁石の明るい色
+    curbDark: 0xb5543c,  // 縁石の暗い色
+    roadColors: {        // 区間ごとの路面の色
+      start: 0xb89b72,   // 浮遊島：土
+      corridor: 0x9a958c,// 空中回廊：石橋
+      temple: 0xe6dfcf,  // 天空神殿：白い石
+      default: 0xa8a090
+    },
+    rockColor: 0x7d6a58, // 浮遊島の岩肌の色
+    rockDepth: {         // 路面の下の岩の深さ（メートル）
+      start: 14,
+      corridor: 3,
+      temple: 10,
+      default: 8
+    },
+    railSpacing: 4,      // 柵の杭の間隔（メートル）
+    railHeight: 1.0,     // 柵の高さ（メートル）
+    railColor: 0xe8e1d0, // 柵の色
+    lanternSpacing: 40,  // 空中ルートの灯籠の間隔（メートル）
+    lanternColor: 0xffd27a // 灯籠の色
   },
 
   // キャラクターのドット絵
