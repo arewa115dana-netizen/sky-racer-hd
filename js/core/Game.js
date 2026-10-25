@@ -3,9 +3,9 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.8.4（Phase8 Step8-4）
+  バージョン : 0.9.1（Phase9 Step9-1）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
-               タイトル・キャラ選択などの画面はPhase9で追加する
+               画面の流れ：タイトル（Title.js）→ レース。キャラ選択・設定は Phase9 の続きで追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え、
                F で仕上げ処理（ティルトシフト・ブルーム・色づくり）の ON / OFF
 */
@@ -27,6 +27,7 @@ import { CameraRig } from '../render/CameraRig.js';
 import { Atmosphere } from '../render/Atmosphere.js';
 import { PostFX } from '../render/PostFX.js';
 import { RaceSession } from '../systems/RaceSession.js';
+import { Title } from '../ui/Title.js';
 
 export class Game {
   constructor(container) {
@@ -50,6 +51,10 @@ export class Game {
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
     this.playerCharIndex = 0;  // プレイヤーのキャラクター番号
+    this.title = null;         // タイトル画面（表示中だけ）
+    this.titleTime = 0;        // タイトルの背景でカメラが飛んだ時間
+    this.titleLook = new THREE.Vector3();
+    this.titlePoint = { x: 0, y: 0, z: 0 };
 
     // 実際に描いた回数（省電力モードでの本当のFPS）
     this.drawnFrames = 0;
@@ -97,7 +102,7 @@ export class Game {
       render: (alpha, frameTime) => this.render(alpha, frameTime)
     });
 
-    this.startRace(0);
+    this.showTitle();
     this.loop.start();
 
     // 結果表が出ているときは Enter キーでも「もう一度」
@@ -106,6 +111,44 @@ export class Game {
         this.startRace(this.playerCharIndex);
       }
     });
+  }
+
+  // ---- タイトル画面を出す（レース中なら片付けてから） ----
+  showTitle() {
+    if (this.session) {
+      this.session.dispose();
+      this.session = null;
+    }
+    this.input.setEnabled(false);
+    document.body.classList.add('in-menu');   // 操作部品を隠す（style.css）
+    this.debug.setVisible(false);
+    this.titleTime = 0;
+    this.setState('TITLE');
+    this.title = new Title(() => this.onTitleStart());
+  }
+
+  // タイトルでタップされた
+  onTitleStart() {
+    this.title = null;
+    document.body.classList.remove('in-menu');
+    this.debug.setVisible(CONFIG.debug.show);
+    this.startRace(this.playerCharIndex);
+  }
+
+  // タイトルの背景：カメラがコースの上をゆっくり飛び、少し先を見る
+  updateTitleCamera(frameTime) {
+    const u = CONFIG.ui;
+    const t = this.track;
+    this.titleTime += frameTime;
+    const s = (u.titleCameraStart + this.titleTime * u.titleCameraSpeed) % t.length;
+    const sway = Math.sin(this.titleTime * 0.25) * u.titleCameraSway;
+    const p = this.titlePoint;
+    t.toWorld(s, sway, u.titleCameraHeight, p);
+    this.camera.position.set(p.x, p.y, p.z);
+    t.toWorld(s + u.titleCameraLook, 0, u.titleCameraHeight * 0.4, p);
+    this.titleLook.set(p.x, p.y, p.z);
+    this.camera.lookAt(this.titleLook);
+    this.environment.update(frameTime, this.camera.position);
   }
 
   // ---- レースを始める（前のレースがあれば片付けてから） ----
@@ -243,6 +286,8 @@ export class Game {
   render(alpha, frameTime) {
     if (this.state === 'RACE' && this.session) {
       this.session.render(alpha, frameTime, this.environment, this.loop.paused);
+    } else if (this.state === 'TITLE' && !this.loop.paused) {
+      this.updateTitleCamera(frameTime);
     }
     // 空気感の演出（カメラを動かした後に。一時停止中は止める）
     if (!this.loop.paused) {
