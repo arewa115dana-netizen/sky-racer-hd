@@ -3,7 +3,7 @@
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.9.2（Phase9 Step9-2）
+  バージョン : 0.9.2b（Phase9 Step9-2 修正）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・結果 40 / バージョン 30 /
@@ -566,7 +566,6 @@ body.in-menu #touch-ui {
 /* ---- キャラクター選択画面 ---- */
 #charselect {
   cursor: default;
-  gap: clamp(6px, 2vh, 14px);
   padding: 10px 16px;
   box-sizing: border-box;
   background: linear-gradient(rgba(10, 20, 50, 0.55), rgba(10, 20, 50, 0.75));
@@ -593,8 +592,18 @@ body.in-menu #touch-ui {
   border-radius: 6px;
 }
 
+/* 中身をまとめる箱。画面が小さいときは、この箱ごと縮める（CharacterSelect.js の fit） */
+.cs-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 34px;          /* 左上の「◀ タイトル」と重ならないように */
+  transform-origin: center center;
+}
+
 .cs-heading {
-  font-size: clamp(16px, 3vw, 24px);
+  font-size: 20px;
   letter-spacing: 0.2em;
   text-shadow: 2px 2px 0 #1a2a5a;
 }
@@ -611,8 +620,8 @@ body.in-menu #touch-ui {
 /* 大きなドット絵（その場で回る） */
 .cs-portrait {
   flex: 0 0 auto;
-  width: clamp(110px, 34vh, 200px);
-  height: clamp(110px, 34vh, 200px);
+  width: 170px;
+  height: 170px;
   background: radial-gradient(circle at 50% 60%, rgba(255, 230, 160, 0.35), rgba(255, 230, 160, 0) 70%);
   border: 2px solid rgba(255, 255, 255, 0.35);
   border-radius: 8px;
@@ -628,12 +637,12 @@ body.in-menu #touch-ui {
 
 .cs-info {
   flex: 1 1 auto;
-  max-width: 420px;
+  width: 400px;
   min-width: 0;
 }
 
 .cs-name {
-  font-size: clamp(22px, 4.4vw, 34px);
+  font-size: 30px;
   text-shadow: 2px 2px 0 #1a2a5a;
 }
 
@@ -649,7 +658,7 @@ body.in-menu #touch-ui {
 
 .cs-desc {
   margin: 8px 0 6px;
-  font-size: clamp(12px, 2vw, 15px);
+  font-size: 14px;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.9);
 }
@@ -672,7 +681,7 @@ body.in-menu #touch-ui {
 }
 
 .cs-stat-bar i {
-  width: clamp(16px, 3.4vw, 26px);
+  width: 24px;
   height: 10px;
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -695,8 +704,8 @@ body.in-menu #touch-ui {
 }
 
 .cs-icon {
-  width: clamp(44px, 12vh, 58px);
-  height: clamp(44px, 12vh, 58px);
+  width: 54px;
+  height: 54px;
   padding: 2px;
   background: rgba(10, 20, 50, 0.6);
   border: 2px solid rgba(255, 255, 255, 0.35);
