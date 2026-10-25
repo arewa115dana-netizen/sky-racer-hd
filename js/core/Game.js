@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.9.4（Phase9 Step9-4）
+  バージョン : 0.10.2（Phase10 Step10-2）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -133,6 +133,7 @@ export class Game {
       onTitle: () => this.screens.showTitle()
     });
     this.setState('RACE');
+    this.screens.onRaceStart(this.session);   // レース曲を流す
     const ch = CHARACTERS[playerCharIndex];
     this.debug.log(ch.name + '（' + ch.type + '）でスタート');
   }
