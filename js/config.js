@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.12.2（Phase12 Step12-2）
+  バージョン : 1.0.0（Phase12 Step12-3：完成版）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.12.2',
+  VERSION: '1.0.0',
 
   // ゲームループ
   loop: {
@@ -196,7 +196,7 @@ export const CONFIG = {
 
   // デバッグ表示
   debug: {
-    show: true,          // 左上の情報表示を出すか
+    show: false,         // 左上の情報表示を最初から出すか（設定画面でONにできる）
     interval: 0.5,       // 情報表示の更新間隔（秒）
     maxLogs: 3           // 情報表示に残すメッセージの数
   },
@@ -294,7 +294,24 @@ export const CONFIG = {
   rubberBand: {
     range: 100,          // プレイヤーとの差がこの距離で補正が最大になる（メートル）
     maxSlow: 0.08,       // 前にいるCPUの最高速を最大何割下げるか（8％）
-    maxFast: 0.08        // 後ろにいるCPUの最高速を最大何割上げるか（8％）
+    maxFast: 0.08,       // 後ろにいるCPUの最高速を最大何割上げるか（8％）
+    cpuSpeed: 1          // CPU全員の最高速の倍率（難しさで変わる。下の difficulty を見る）
+  },
+
+  // 難しさ（キャラ選択で選ぶ）。選んだ段階の値が、CPUの腕前と上の追い上げ補正に入る
+  //   skill      … CPUの腕前に掛ける倍率（ドリフト・リング・ブーストの上手さ。上限は1）
+  //   rubberSlow … 前にいるCPUを遅くする量（rubberBand.maxSlow になる）
+  //   rubberFast … 後ろにいるCPUを速くする量（rubberBand.maxFast になる）
+  //   cpuSpeed   … CPU全員の最高速の倍率（1.5％違うだけでも大きく変わる）
+  // 試走の結果（6キャラ平均）：やさしい＝初心者でも表彰台、ふつう＝上手で3位前後、むずかしい＝上手で4位前後
+  difficulty: {
+    default: 'normal',
+    order: ['easy', 'normal', 'hard'],
+    levels: {
+      easy: { label: 'やさしい', skill: 0.65, rubberSlow: 0.16, rubberFast: 0.03, cpuSpeed: 0.985 },
+      normal: { label: 'ふつう', skill: 1.0, rubberSlow: 0.08, rubberFast: 0.08, cpuSpeed: 1.0 },
+      hard: { label: 'むずかしい', skill: 1.1, rubberSlow: 0.04, rubberFast: 0.10, cpuSpeed: 1.015 }
+    }
   },
 
   // CPUの思考（AIController が使う）
