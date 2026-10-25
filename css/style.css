@@ -3,10 +3,10 @@
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.9.1（Phase9 Step9-1）
+  バージョン : 0.9.2（Phase9 Step9-2）
 
   重なり順（z-index。大きいほど手前）
-    エラー 100 / 縦向き警告 50 / タイトル・結果 40 / バージョン 30 /
+    エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・結果 40 / バージョン 30 /
     操作部品 20 / HUD 15 / デバッグ 10 / 周辺減光 5
 */
 
@@ -561,4 +561,177 @@ body.in-menu #touch-ui {
   bottom: 10px;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.75);
+}
+
+/* ---- キャラクター選択画面 ---- */
+#charselect {
+  cursor: default;
+  gap: clamp(6px, 2vh, 14px);
+  padding: 10px 16px;
+  box-sizing: border-box;
+  background: linear-gradient(rgba(10, 20, 50, 0.55), rgba(10, 20, 50, 0.75));
+  animation: title-in 0.4s ease both;
+}
+
+/* 画面の中のボタン共通（指で押しやすい大きさ） */
+#charselect button {
+  font-family: inherit;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cs-back {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  min-height: 40px;
+  padding: 6px 14px;
+  font-size: 15px;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+}
+
+.cs-heading {
+  font-size: clamp(16px, 3vw, 24px);
+  letter-spacing: 0.2em;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.cs-main {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 3vw, 32px);
+  max-width: 760px;
+  width: 100%;
+  justify-content: center;
+}
+
+/* 大きなドット絵（その場で回る） */
+.cs-portrait {
+  flex: 0 0 auto;
+  width: clamp(110px, 34vh, 200px);
+  height: clamp(110px, 34vh, 200px);
+  background: radial-gradient(circle at 50% 60%, rgba(255, 230, 160, 0.35), rgba(255, 230, 160, 0) 70%);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+}
+
+.cs-big,
+.cs-icon canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;      /* ぼかさずドットのまま拡大 */
+  image-rendering: crisp-edges;
+}
+
+.cs-info {
+  flex: 1 1 auto;
+  max-width: 420px;
+  min-width: 0;
+}
+
+.cs-name {
+  font-size: clamp(22px, 4.4vw, 34px);
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.cs-type {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 10px;
+  font-size: 14px;
+  color: #2a1a00;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border-radius: 4px;
+}
+
+.cs-desc {
+  margin: 8px 0 6px;
+  font-size: clamp(12px, 2vw, 15px);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cs-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cs-stat-label {
+  width: 5em;
+}
+
+.cs-stat-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.cs-stat-bar i {
+  width: clamp(16px, 3.4vw, 26px);
+  height: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.cs-stat-bar i.on {
+  background: linear-gradient(#ffe28a, #f0a020);
+  border-color: #ffe9a8;
+}
+
+.cs-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cs-icons {
+  display: flex;
+  gap: 6px;
+}
+
+.cs-icon {
+  width: clamp(44px, 12vh, 58px);
+  height: clamp(44px, 12vh, 58px);
+  padding: 2px;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+}
+
+.cs-icon.selected {
+  border-color: #ffd34a;
+  background: rgba(255, 210, 80, 0.25);
+  box-shadow: 0 0 10px rgba(255, 210, 80, 0.7);
+}
+
+.cs-arrow {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+}
+
+.cs-decide {
+  min-width: 110px;
+  height: 48px;
+  margin-left: 10px;
+  font-size: 20px;
+  letter-spacing: 0.2em;
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  border-radius: 8px;
+  box-shadow: 0 4px 0 #0b1530;
+}
+
+.cs-decide:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #0b1530;
 }
