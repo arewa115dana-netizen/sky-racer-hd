@@ -4,7 +4,7 @@
   役割       : コースの中心線。CourseData の制御点をなめらかな曲線でつなぎ、
                2メートルごとに「位置・向き・道幅・区間の種類」を前もって計算しておく。
                レーサーの位置（コース基準座標）と画面上の位置の変換を担当する
-  バージョン : 0.3.1（Phase3 Step3-1）
+  バージョン : 0.11.1（Phase11 Step11-1：メモリのゴミを減らす）
 
   コース基準座標
     s : スタートから何メートル進んだか（0〜コース全長）
@@ -21,6 +21,7 @@ export class Track {
   constructor(courseData) {
     this.data = courseData;
     this.name = courseData.name;
+    this.located = { i0: 0, i1: 0, f: 0 };   // locate の結果を入れる入れ物（使い回す）
     this.sectorCount = courseData.sectors || 8;
 
     this.buildSamples(courseData.points);
@@ -174,10 +175,17 @@ export class Track {
     return d;
   }
 
+  // s がどの2点の間の、どのくらいの位置かを求める。
+  // 毎回新しい入れ物を作るとメモリのゴミが増える（1秒に何千回も呼ばれる）ので、
+  // 同じ入れ物を使い回す。結果はすぐ使うこと（次の locate で上書きされる）
   locate(s) {
     const pos = this.wrap(s) / this.step;
     const i0 = Math.floor(pos) % this.count;
-    return { i0, i1: (i0 + 1) % this.count, f: pos - Math.floor(pos) };
+    const t = this.located;
+    t.i0 = i0;
+    t.i1 = (i0 + 1) % this.count;
+    t.f = pos - Math.floor(pos);
+    return t;
   }
 
   indexAt(s) {
