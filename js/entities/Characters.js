@@ -3,9 +3,9 @@
   保存場所   : /js/entities
   役割       : 6人のキャラクターの名前・タイプ・能力値・配色
                （能力値は1〜5、5項目の合計はどのキャラも15）
-  バージョン : 0.2.4（Phase2 Step2-4）
-  メモ       : palette はStep2-5以降のドット絵で使う。
-               parts（帽子・羽などの小物）はPhase8で追加する
+  バージョン : 0.12.1（Phase12 Step12-1：強さの最終調整）
+  メモ       : palette はドット絵の色。帽子・羽などの小物は art/Parts.js にある
+               能力値1段階の効き目は config.js の racer（maxSpeedPerStat など）で決まる
 */
 
 export const CHARACTERS = [
@@ -45,7 +45,7 @@ export const CHARACTERS = [
     id: 'engineer',
     name: 'エンジニア',
     type: 'ドリフト型',
-    stats: { speed: 3, accel: 2, handling: 3, flight: 2, drift: 5 },
+    stats: { speed: 3, accel: 3, handling: 2, flight: 2, drift: 5 },   // Phase12：曲がり1を加速へ（加速2・飛行2で遅れすぎたため）
     palette: { main: 0xe08a2e, sub: 0x5b4636, accent: 0x9fd3ff },
     parts: []
   },
