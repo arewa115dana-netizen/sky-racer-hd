@@ -17,6 +17,8 @@ import { SKY_TEMPLE } from '../world/CourseData.js';
 import { TEMPLE_DECOR } from '../world/Decor.js';
 import { buildBuildings } from '../world/Buildings.js';
 import { buildLandmarks } from '../world/Landmarks.js';
+import { DESERT_COURSE } from './desert.js';
+import { ICE_COURSE } from './ice.js';
 
 export const COURSES = [
   {
@@ -40,9 +42,9 @@ export const COURSES = [
       return { group, update: (dt) => landmarks.update(dt) };
     }
   },
+  DESERT_COURSE,
+  ICE_COURSE,
   // ---- これから作るコース（準備中） ----
-  { id: 'desert', ready: false, name: '夕焼けの砂漠遺跡', sub: '砂岩のピラミッドと柱が並ぶ、オレンジの空', stars: 2, color: '#ffb35c' },
-  { id: 'ice', ready: false, name: '氷の空中城', sub: 'すべる氷の道と、オーロラの夜空', stars: 4, color: '#a8e4ff' },
   { id: 'harbor', ready: false, name: '雲海の港町', sub: '飛行船が浮かぶ港と、カラフルな町並み', stars: 3, color: '#ffd36e' },
   { id: 'volcano', ready: false, name: '溶岩の火山島', sub: '赤く光る溶岩と、舞い上がる火の粉', stars: 5, color: '#ff6a4a' },
   { id: 'observatory', ready: false, name: '星空の天文塔', sub: '光る水晶と、星の海を回る塔', stars: 4, color: '#b49cff' },

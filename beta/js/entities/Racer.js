@@ -2,7 +2,7 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.12.1（Phase12 Step12-1：加速の能力でブーストも強くなる）
+  バージョン : 1.14.0（Phase14：氷の上ですべる）
   メモ       : 状態は 走行（drive）・ドリフト（drift）・空中（air）・復帰中（respawn）。
                空中では上下に動ける（飛行の能力で速さが変わる）。
                ドリフト：地上でドリフトボタンを押しながら曲がると始まり、火花を2段階で溜め、
@@ -32,6 +32,7 @@ export class Racer {
     this.x = 0;
     this.y = 0;
     this.angle = 0;
+    this.moveAngle = 0;     // 実際に進んでいる向き（ふだんは angle と同じ。氷の上では遅れてついてくる＝すべる）
     this.speed = 0;
     this.vy = 0;
 
@@ -97,6 +98,7 @@ export class Racer {
     this.x = x;
     this.y = 0;
     this.angle = 0;
+    this.moveAngle = 0;     // 実際に進んでいる向き（ふだんは angle と同じ。氷の上では遅れてついてくる＝すべる）
     this.speed = 0;
     this.prevDistance = distance;
     this.prevX = x;
@@ -180,18 +182,29 @@ export class Racer {
       this.angle += input.steer * this.turnRate * turnFactor * dt;
     }
 
+    // 氷の上：進む向きが、向いている向きに少し遅れてついてくる（カーブで外へすべる）
+    const grip = track.data.grip ? track.data.grip[track.areaAt(this.s)] : undefined;
+    if (grip !== undefined && !inAir) {
+      this.moveAngle += (this.angle - this.moveAngle) * Math.min(1, grip * dt);
+    } else {
+      this.moveAngle = this.angle;
+    }
+    this.onIce = grip !== undefined && !inAir;
+
     // 進む：コースが曲がると、まっすぐ進んでいても向きのずれが増える
     const k = track.curvatureAt(this.s);
-    const along = this.speed * Math.cos(this.angle) * dt;
+    const along = this.speed * Math.cos(this.moveAngle) * dt;
     const ds = along / Math.max(0.2, 1 + k * this.x);
     this.angle += k * ds;
-    this.x += this.speed * Math.sin(this.angle) * dt;
+    this.moveAngle += k * ds;
+    this.x += this.speed * Math.sin(this.moveAngle) * dt;
     this.distance += ds;
     this.s = this.wrap(this.distance);
     this.lap = Math.floor(this.distance / track.length);
 
     // 向きのずれには上限（コース上で逆走しないように）
     this.angle = clamp(this.angle, -r.maxAngle, r.maxAngle);
+    this.moveAngle = clamp(this.moveAngle, -r.maxAngle, r.maxAngle);
 
     const zone = track.zoneAt(this.s);
     const half = track.widthAt(this.s) / 2;
@@ -212,10 +225,12 @@ export class Racer {
     if (this.x > limit) {
       this.x = limit;
       if (this.angle > 0) this.angle *= r.wallAngleKeep;
+      if (this.moveAngle > 0) this.moveAngle *= r.wallAngleKeep;
       this.wallHit = true;
     } else if (this.x < -limit) {
       this.x = -limit;
       if (this.angle < 0) this.angle *= r.wallAngleKeep;
+      if (this.moveAngle < 0) this.moveAngle *= r.wallAngleKeep;
       this.wallHit = true;
     }
     if (this.wallHit) {

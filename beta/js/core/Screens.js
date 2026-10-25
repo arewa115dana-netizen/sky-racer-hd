@@ -199,7 +199,10 @@ export class Screens {
     const u = CONFIG.ui;
     const t = g.track;
     this.titleTime += frameTime;
-    const s = (u.titleCameraStart + this.titleTime * u.titleCameraSpeed) % t.length;
+    // カメラが飛び始める位置はコースごと（なければ config.js の値）
+    const course = g.world ? g.world.course : null;
+    const start = course && course.titleStart !== undefined ? course.titleStart : u.titleCameraStart;
+    const s = (start + this.titleTime * u.titleCameraSpeed) % t.length;
     const sway = Math.sin(this.titleTime * 0.25) * u.titleCameraSway;
     const p = this.titlePoint;
     t.toWorld(s, sway, u.titleCameraHeight, p);

@@ -44,12 +44,19 @@ export class Environment {
     this.sun = this.buildSun();
     this.root.add(this.sun);
 
+    // 浮遊島を置かない場所（コースの建物のまわり。{ x, z, r } の一覧）
+    this.keepOut = course && course.keepOut ? course.keepOut : [];
+
     this.buildClouds(low ? 1 : 2);
     this.root.add(this.buildFarIslands(low ? 6 : 10));
     this.root.add(this.buildIslands(low ? Math.round(e.islandCount / 2) : e.islandCount));
     // コースだけの建物・名所（毎フレーム動かす物があれば update を持つ）
     this.scenery = course && course.scenery ? course.scenery(track, quality.level) : null;
-    if (this.scenery) this.root.add(this.scenery.group);
+    if (this.scenery) {
+      this.root.add(this.scenery.group);
+      // 建物側が作った島（オアシスなど）にも、草木を置く
+      if (this.scenery.islands) this.islandSpots.push(...this.scenery.islands);
+    }
     // 草木（浮遊島の上と、コースの路肩）
     this.decor = buildDecor(track, this.islandSpots, quality.level, course ? course.decor : undefined);
     this.root.add(this.decor);
@@ -98,6 +105,13 @@ export class Environment {
       cameraPosition.z + e.sunDirection.z * e.sunDistance
     );
 
+    // オーロラをゆっくりゆらめかせる（模様を横に流す）
+    if (this.auroraMaps) {
+      this.auroraMaps.forEach((map, n) => {
+        map.offset.x = (this.time * (n === 0 ? 0.012 : -0.008)) % 1;
+      });
+    }
+
     // 雲海をゆっくり流す
     this.cloudLayers.forEach((layer, i) => {
       const speed = e.cloudSpeed * (i === 0 ? 1 : 0.6);
@@ -129,7 +143,97 @@ export class Environment {
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = -1;
+    // 夜のコースは星をちりばめる（空と一緒にカメラについて動く）
+    if (e.starCount > 0) mesh.add(this.buildStars(e.starCount, e.skyRadius * 0.95));
+    // オーロラ（夜のコース）
+    if (e.aurora) {
+      this.aurora = this.buildAurora(e.aurora, e.skyRadius * 0.9);
+      mesh.add(this.aurora);
+    }
     return mesh;
+  }
+
+  // ---- オーロラ（空にゆらめく光のカーテン。2枚を少しずらして重ねる） ----
+  buildAurora(opt, radius) {
+    const group = new THREE.Group();
+    const tex = makeAuroraTexture(opt.colors || ['#7dffb0', '#a070ff']);
+    tex.wrapS = THREE.RepeatWrapping;
+    this.auroraMaps = [];
+    const center = (opt.angle || 0) * Math.PI / 180;
+    for (let n = 0; n < 2; n += 1) {
+      const segs = 36;
+      const span = (n === 0 ? 110 : 80) * Math.PI / 180;
+      const start = center - span / 2 + n * 0.35;
+      const bottom = radius * (0.12 + n * 0.06);
+      const top = radius * (0.5 + n * 0.08);
+      const positions = [];
+      const uvs = [];
+      for (let k = 0; k <= segs; k += 1) {
+        const t = k / segs;
+        const a = start + t * span;
+        // カーテンのひだ（半径を波打たせる）
+        const r = radius * (0.92 + Math.sin(t * 9 + n * 2) * 0.04);
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r;
+        const lift = Math.sin(t * Math.PI) * radius * 0.06;   // 真ん中ほど少し高く
+        positions.push(x, bottom + lift, z, x, top + lift, z);
+        uvs.push(t * 3, 0, t * 3, 1);
+      }
+      const index = [];
+      for (let k = 0; k < segs; k += 1) {
+        const i = k * 2;
+        index.push(i, i + 2, i + 1, i + 1, i + 2, i + 3);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(index);
+      const map = n === 0 ? tex : tex.clone();
+      this.auroraMaps.push(map);
+      const mat = new THREE.MeshBasicMaterial({
+        map,
+        transparent: true,
+        opacity: n === 0 ? 0.72 : 0.48,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = -1;
+      group.add(mesh);
+    }
+    return group;
+  }
+
+  // ---- 星（空の上半分に、明るさの違う小さな点を散らす） ----
+  buildStars(count, radius) {
+    const random = seededRandom(4242);
+    const positions = [];
+    const colors = [];
+    for (let i = 0; i < count; i += 1) {
+      // 上半分に均等に散らす（地平線の近くは少なめ）
+      const y = 0.08 + random() * 0.92;
+      const a = random() * Math.PI * 2;
+      const r = Math.sqrt(1 - y * y);
+      positions.push(Math.cos(a) * r * radius, y * radius, Math.sin(a) * r * radius);
+      const b = 0.45 + random() * 0.55;
+      const tint = random();
+      colors.push(b * (tint < 0.2 ? 1 : 0.85), b * 0.9, b);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 2.2,
+      sizeAttenuation: false,   // 遠さに関係なく同じ大きさ（画面で2ドットくらい）
+      vertexColors: true,
+      fog: false,
+      depthWrite: false
+    });
+    const stars = new THREE.Points(geo, mat);
+    stars.renderOrder = -1;
+    return stars;
   }
 
   // ---- 太陽（光がにじむ板。軽量ブルーム風） ----
@@ -228,6 +332,7 @@ export class Environment {
         const z = center.z + Math.cos(angle) * dist;
         const size = 5 + random() * 16;
         if (this.distanceToTrack(x, z) < e.islandClearance + size) continue;
+        if (this.keepOut.some((k) => Math.hypot(k.x - x, k.z - z) < k.r + size)) continue;
         const y = -18 + random() * 50;
         dummy.position.set(x, y, z);
         dummy.rotation.set(0, random() * Math.PI * 2, 0);
@@ -276,14 +381,14 @@ export class Environment {
 // まとまりの中の、形・材質・画像をすべて手放す（同じ物を何度手放しても問題ない）
 export function disposeTree(root) {
   root.traverse((obj) => {
-    if (obj.geometry) obj.geometry.dispose();
+    if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
     const list = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
     for (const m of list) {
       for (const key of Object.keys(m)) {
         const v = m[key];
-        if (v && v.isTexture) v.dispose();
+        if (v && v.isTexture && v.dispose) v.dispose();
       }
-      m.dispose();
+      if (m.dispose) m.dispose();
     }
     if (obj.isInstancedMesh && obj.dispose) obj.dispose();
   });
@@ -350,6 +455,37 @@ function makeIslandGeometry(grassHex, rockHex) {
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
   return geo;
+}
+
+// オーロラの模様：下が明るい色、上へ行くほど別の色に変わりながら消える。縦のすじでカーテンらしく
+function makeAuroraTexture(colors) {
+  const w = 128;
+  const h = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createLinearGradient(0, h, 0, 0);   // 下 → 上
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(0.08, colors[0]);
+  g.addColorStop(0.45, colors[0]);
+  g.addColorStop(0.8, colors[1]);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // 縦のすじ（明るさを列ごとに変える。端がつながるように）。1ドットずつ透明度を掛ける
+  const random = seededRandom(909);
+  const img = ctx.getImageData(0, 0, w, h);
+  for (let x = 0; x < w; x += 1) {
+    const v = 0.25 + 0.75 * Math.abs(Math.sin(x / w * Math.PI * 6 + Math.sin(x / w * Math.PI * 2) * 2)) * (0.7 + random() * 0.3);
+    for (let y = 0; y < h; y += 1) {
+      img.data[(y * w + x) * 4 + 3] *= v;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 // 中心が明るく外側が透明な丸い光
