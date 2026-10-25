@@ -4,7 +4,7 @@
   役割       : 画質の管理。端末に合わせて画質の段階（high / mid / low）を決め、
                FPSを見張って描画解像度を自動で上げ下げする。
                省電力モード（30FPS）の切り替えもここで持つ
-  バージョン : 0.2.7（Phase2 Step2-7）
+  バージョン : 0.11.2（Phase11 Step11-2）
 */
 
 import { CONFIG } from '../config.js';
@@ -23,6 +23,9 @@ export class Quality {
     this.sampleFrames = 0;
     this.goodTime = 0;           // 余裕のある状態が続いた時間
     this.renderWait = 0;         // 省電力モードで次に描くまでの待ち時間
+    this.strainTime = 0;         // 解像度を一番下げてもFPSが足りない状態が続いている時間
+    this.onShed = null;          // それが続いたときに呼ぶ関数（Game.js が「もう一段軽くする」を登録）
+    this.lastFps = 0;            // 直近の平均FPS（デバッグ表示用）
 
     this.apply();
   }
@@ -46,9 +49,24 @@ export class Quality {
     const elapsed = this.sampleTime;
     this.sampleTime = 0;
     this.sampleFrames = 0;
+    this.lastFps = fps;
 
     // 省電力モード中は30FPSが正常なので調整しない
-    if (this.powerSave) return;
+    if (this.powerSave) {
+      this.strainTime = 0;
+      return;
+    }
+
+    // 解像度を一番下げてもまだ重い状態が続いたら、見た目の飾りを1段減らしてもらう
+    if (fps < q.downFps && this.scale <= q.minScale + 0.001) {
+      this.strainTime += elapsed;
+      if (this.strainTime >= q.shedSeconds && this.onShed) {
+        this.strainTime = 0;
+        this.onShed();
+      }
+    } else {
+      this.strainTime = 0;
+    }
 
     if (fps < q.downFps && this.scale > q.minScale) {
       // 重い：解像度を下げる
