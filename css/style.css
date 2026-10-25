@@ -1,0 +1,123 @@
+/*
+  ファイル名 : style.css
+  保存場所   : /css
+  役割       : 画面全体のレイアウト、情報表示、縦向き警告、エラー表示の見た目
+  バージョン : 0.1.0（Phase1 動作確認版）
+*/
+
+/* ---- 画面全体：スクロール・拡大・選択・長押しメニューを無効化 ---- */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #0b1530;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- ゲーム画面 ---- */
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- 情報表示（左上）：ノッチや丸角を避ける ---- */
+#hud {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: calc(env(safe-area-inset-left) + 8px);
+  pointer-events: none;
+  z-index: 10;
+}
+
+#info {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+/* ---- バージョン番号（右下） ---- */
+#version {
+  position: fixed;
+  right: calc(env(safe-area-inset-right) + 8px);
+  bottom: calc(env(safe-area-inset-bottom) + 6px);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#version.warn {
+  color: #ffcc33;
+  opacity: 1;
+}
+
+/* ---- 縦向き警告（縦向きのときだけ表示） ---- */
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #0b1530;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 18px;
+}
+
+.rotate-icon {
+  font-size: 56px;
+  margin-bottom: 12px;
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  #rotate {
+    display: flex;
+  }
+}
+
+/* ---- エラー表示（エラーが起きたときだけ表示） ---- */
+#error {
+  display: none;
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-height: 60%;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  z-index: 100;
+  background: rgba(150, 0, 0, 0.92);
+  color: #ffffff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-radius: 8px;
+  pointer-events: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
