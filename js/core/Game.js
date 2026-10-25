@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.4.1（Phase4 Step4-1）
+  バージョン : 0.4.2（Phase4 Step4-2）
   メモ       : 天空神殿コースを、プレイヤー1人＋CPU5人の6人で走る。
                空中区間はまだ自動で滑空する（上下操作はPhase6）
                カウントダウン・順位・ゴールはPhase5で追加する
@@ -27,6 +27,7 @@ import { CHARACTERS } from '../entities/Characters.js';
 import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
 import { AIController } from '../ai/AIController.js';
+import { resolveCollisions } from '../systems/Collision.js';
 
 export class Game {
   constructor(container) {
@@ -262,12 +263,22 @@ export class Game {
       const input = this.input.getState();
       const wasRespawning = this.player.state === 'respawn';
 
+      // CPUの追い上げ補正（プレイヤーとの差で最高速を少し変える）
+      this.updateRubberBand();
+
       // 全員：入力を決めて（プレイヤーは指・キー、CPUは思考）、同じ物理で動かす
       for (let i = 0; i < this.racers.length; i += 1) {
         const racer = this.racers[i];
         const ai = this.ais[i];
         racer.applyInput(ai ? ai.think(dt) : input);
         racer.step(dt);
+      }
+
+      // レーサー同士の押し合い
+      const wasBumped = this.player.bumped;
+      this.contacts = resolveCollisions(this.racers, this.track);
+      if (this.player.bumped && !wasBumped) {
+        this.playerBumps = (this.playerBumps || 0) + 1;
       }
 
       if (!wasRespawning && this.player.state === 'respawn') {
@@ -304,7 +315,8 @@ export class Game {
       if (r !== p && r.distance > p.distance) rank += 1;
       if (r !== p) cpuFalls += r.fallCount;
     }
-    this.debugLines[5] = '仮の順位 ' + rank + '/' + this.racers.length + '  CPUの落下 ' + cpuFalls + '回';
+    this.debugLines[5] = '仮の順位 ' + rank + '/' + this.racers.length + '  CPUの落下 ' + cpuFalls + '回' +
+                         '  自分の接触 ' + (this.playerBumps || 0) + '回';
   }
 
   // ---- 描画（毎フレーム） ----
@@ -349,6 +361,17 @@ export class Game {
       pixelRatio: this.quality.pixelRatio,
       lines: this.debugLines
     });
+  }
+
+  // CPUの追い上げ補正：前にいるCPUは少し遅く、後ろにいるCPUは少し速く
+  updateRubberBand() {
+    const rb = CONFIG.rubberBand;
+    for (const racer of this.racers) {
+      if (racer.isPlayer) continue;
+      const gap = racer.distance - this.player.distance;
+      const ratio = Math.min(1, Math.abs(gap) / rb.range);
+      racer.speedScale = gap > 0 ? 1 - ratio * rb.maxSlow : 1 + ratio * rb.maxFast;
+    }
   }
 
   // レーサー1人の見た目を更新する
