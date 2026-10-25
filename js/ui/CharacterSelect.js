@@ -2,10 +2,11 @@
   ファイル名 : CharacterSelect.js
   保存場所   : /js/ui
   役割       : キャラクター選択画面。選んだキャラを大きく表示してゆっくり回し（全方向のドット絵）、
-               名前・タイプ・説明・5つの能力の棒グラフを見せる。下の顔アイコンで選んで「決定」
-  バージョン : 0.9.2b（Phase9 Step9-2 修正：画面に収まるよう自動で縮める）
-  操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」
-               PC     … ← → で選ぶ、Enter・スペースで決定、Esc でタイトルへ、数字キー 1〜6
+               名前・タイプ・説明・5つの能力の棒グラフを見せる。下の顔アイコンで選んで「決定」。
+               CPUの強さ（難しさ：やさしい／ふつう／むずかしい）もここで選ぶ
+  バージョン : 1.0.0（Phase12 Step12-3）
+  操作       : スマホ … アイコンをタップ／◀ ▶ ／難しさのボタン／「決定」
+               PC     … ← → で選ぶ、↑ ↓ で難しさ、Enter・スペースで決定、Esc でタイトルへ、数字キー 1〜6
   メモ       : ドット絵は、ゲームで使っている画像（atlas）から切り抜いて表示する（新しい画像は作らない）
 */
 
@@ -48,6 +49,9 @@ export class CharacterSelect {
    * @param {function} o.onDecide 決定したときに呼ぶ関数（キャラ番号を渡す）
    * @param {function} o.onBack   タイトルへ戻るときに呼ぶ関数
    * @param {function} o.onSound  効果音を鳴らす関数（名前を渡す）
+   * @param {Array} o.difficulties 難しさの一覧 [{ key, label }]（やさしい順）
+   * @param {string} o.difficulty  今の難しさ（key）
+   * @param {function} o.onDifficulty 難しさを変えたときに呼ぶ関数（key を渡す）
    */
   constructor(o) {
     this.characters = o.characters;
@@ -56,6 +60,9 @@ export class CharacterSelect {
     this.onDecide = o.onDecide;
     this.onBack = o.onBack;
     this.onSound = o.onSound || (() => {});
+    this.difficulties = o.difficulties || [];
+    this.difficulty = o.difficulty;
+    this.onDifficulty = o.onDifficulty || (() => {});
     this.done = false;
     this.turn = 0;
 
@@ -107,6 +114,7 @@ export class CharacterSelect {
       '    <div class="cs-stats"></div>' +
       '  </div>' +
       '</div>' +
+      '<div class="cs-diff"><span class="cs-diff-label">難しさ</span><span class="cs-diff-btns"></span></div>' +
       '<div class="cs-bottom">' +
       '  <button class="cs-arrow cs-prev" type="button">◀</button>' +
       '  <div class="cs-icons"></div>' +
@@ -157,6 +165,19 @@ export class CharacterSelect {
       return button;
     });
 
+    // 難しさのボタン
+    const diffEl = el.querySelector('.cs-diff-btns');
+    this.diffButtons = this.difficulties.map((d) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cs-diff-btn';
+      button.textContent = d.label;
+      button.addEventListener('click', () => this.setDifficulty(d.key));
+      diffEl.appendChild(button);
+      return button;
+    });
+    this.setDifficulty(this.difficulty, true);
+
     el.querySelector('.cs-prev').addEventListener('click', () => this.move(-1));
     el.querySelector('.cs-next').addEventListener('click', () => this.move(1));
     el.querySelector('.cs-decide').addEventListener('click', () => this.decide());
@@ -200,6 +221,26 @@ export class CharacterSelect {
     if (!silent) this.onSound('select');
   }
 
+  // 難しさを選ぶ（silent = 音を鳴らさず、知らせない）
+  setDifficulty(key, silent) {
+    if (this.done) return;
+    if (!this.difficulties.some((d) => d.key === key)) return;
+    this.difficulty = key;
+    this.diffButtons.forEach((b, k) => b.classList.toggle('selected', this.difficulties[k].key === key));
+    if (!silent) {
+      this.onSound('select');
+      this.onDifficulty(key);
+    }
+  }
+
+  // 難しさを1つずらす（step = -1 でやさしく、1 で難しく）
+  moveDifficulty(step) {
+    const list = this.difficulties;
+    const i = list.findIndex((d) => d.key === this.difficulty);
+    const next = list[Math.max(0, Math.min(list.length - 1, i + step))];
+    if (next && next.key !== this.difficulty) this.setDifficulty(next.key);
+  }
+
   move(step) {
     const n = this.characters.length;
     this.select((this.index + step + n) % n);
@@ -223,6 +264,8 @@ export class CharacterSelect {
   handleKey(e) {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.move(-1);
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.move(1);
+    else if (e.code === 'ArrowUp' || e.code === 'KeyW') this.moveDifficulty(1);
+    else if (e.code === 'ArrowDown' || e.code === 'KeyS') this.moveDifficulty(-1);
     else if (e.code === 'Enter' || e.code === 'Space') this.decide();
     else if (e.code === 'Escape') this.back();
     else if (e.code.startsWith('Digit')) {
