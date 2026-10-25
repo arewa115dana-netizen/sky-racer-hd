@@ -2,9 +2,16 @@
   ファイル名 : style.css
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
-               レース中の表示（HUD）、縦向き警告、エラー表示の見た目
-  バージョン : 0.5.2（Phase5 Step5-2）
+               レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
+  バージョン : 0.9.1（Phase9 Step9-1）
+
+  重なり順（z-index。大きいほど手前）
+    エラー 100 / 縦向き警告 50 / タイトル・結果 40 / バージョン 30 /
+    操作部品 20 / HUD 15 / デバッグ 10 / 周辺減光 5
 */
+
+/* ドット絵風の日本語フォント（読み込めないときは普通の文字で表示される） */
+@import url("https://fonts.googleapis.com/css2?family=DotGothic16&display=swap");
 
 /* ---- 画面全体：スクロール・拡大・選択・長押しメニューを無効化 ---- */
 html,
@@ -452,4 +459,106 @@ body.is-touch #touch-ui {
   pointer-events: auto;
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* ============================================================
+   画面まわり（Phase9）
+   ============================================================ */
+
+/* タイトルやメニューを出している間は、スティックやボタンを隠す */
+body.in-menu #touch-ui {
+  display: none;
+}
+
+/* 全画面の画面（タイトルなど）の共通の土台 */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: "DotGothic16", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.4s ease;
+}
+
+.screen.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- タイトル画面 ---- */
+#title {
+  /* 真ん中は景色が見え、まわりは少し暗く */
+  background: radial-gradient(ellipse at center, rgba(10, 20, 50, 0.05) 30%, rgba(10, 20, 50, 0.55) 100%);
+  animation: title-in 0.8s ease both;
+}
+
+@keyframes title-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.title-logo {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25em;
+  font-size: clamp(40px, 11vw, 96px);
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.title-sky {
+  color: #fff8e6;
+  /* 濃い縁取り＋下に落ちる影で、ドット絵のロゴらしく */
+  text-shadow:
+    3px 0 0 #1a2a5a, -3px 0 0 #1a2a5a, 0 3px 0 #1a2a5a, 0 -3px 0 #1a2a5a,
+    3px 3px 0 #1a2a5a, -3px 3px 0 #1a2a5a, 3px -3px 0 #1a2a5a, -3px -3px 0 #1a2a5a,
+    0 7px 0 #0b1530, 0 0 24px rgba(255, 220, 140, 0.55);
+}
+
+.title-hd {
+  font-size: 0.42em;
+  margin-top: 0.15em;
+  padding: 0.08em 0.3em;
+  color: #2a1a00;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  box-shadow: 0 4px 0 #0b1530;
+}
+
+.title-sub {
+  margin-top: 14px;
+  font-size: clamp(16px, 3.6vw, 28px);
+  letter-spacing: 0.3em;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #1a2a5a, -2px 2px 0 #1a2a5a, 2px -2px 0 #1a2a5a, -2px -2px 0 #1a2a5a;
+}
+
+.title-start {
+  margin-top: clamp(24px, 8vh, 64px);
+  padding: 10px 28px;
+  font-size: clamp(18px, 3.4vw, 26px);
+  letter-spacing: 0.15em;
+  color: #ffffff;
+  background: rgba(10, 20, 50, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  animation: title-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes title-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.title-foot {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
 }
