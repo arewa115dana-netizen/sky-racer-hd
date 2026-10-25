@@ -4,7 +4,7 @@
   役割       : 画質の管理。端末に合わせて画質の段階（high / mid / low）を決め、
                FPSを見張って描画解像度を自動で上げ下げする。
                省電力モード（30FPS）の切り替えもここで持つ
-  バージョン : 0.11.2（Phase11 Step11-2）
+  バージョン : 0.11.3（Phase11 Step11-3）
 */
 
 import { CONFIG } from '../config.js';
@@ -26,6 +26,8 @@ export class Quality {
     this.strainTime = 0;         // 解像度を一番下げてもFPSが足りない状態が続いている時間
     this.onShed = null;          // それが続いたときに呼ぶ関数（Game.js が「もう一段軽くする」を登録）
     this.lastFps = 0;            // 直近の平均FPS（デバッグ表示用）
+    this.cap = 0;                // 今の場面で1秒に描く回数の上限（0 = 上限なし）。Game.js が場面ごとに決める
+    this.halfRate = false;       // 自動軽量化の最後の段：レース中も30回にそろえる
 
     this.apply();
   }
@@ -94,14 +96,24 @@ export class Quality {
     this.sampleFrames = 0;
   }
 
-  // 省電力モードでは描画を間引く。今回のフレームを描くなら true
+  // 場面ごとの描く回数の上限を決める（レース 60、メニュー 30、一時停止 10 など）
+  setCap(fps) {
+    this.cap = fps;
+  }
+
+  // 描く回数を間引く。今回のフレームを描くなら true。
+  // 120Hz の画面では毎秒120回呼ばれるが、上限60なら2回に1回だけ描く（電池と発熱を抑える）
   shouldRender(frameTime) {
-    if (!this.powerSave) return true;
-    const period = 1 / CONFIG.quality.powerSaveFps;
+    const q = CONFIG.quality;
+    let cap = this.cap;
+    if (this.powerSave || this.halfRate) cap = cap ? Math.min(cap, q.powerSaveFps) : q.powerSaveFps;
+    if (!cap) return true;
+    const period = 1 / cap;
     // 前回描いてからの時間をためて、1/30秒たったら描く（少しの誤差は許す）
     this.renderWait += frameTime;
     if (this.renderWait < period - 0.004) return false;
-    this.renderWait = Math.max(0, Math.min(period, this.renderWait - period));
+    // 早めに描いた分は次に持ち越す（マイナスも少し残す）ので、144Hzなどでも平均がちょうど上限になる
+    this.renderWait = Math.max(-period / 2, Math.min(period, this.renderWait - period));
     return true;
   }
 
@@ -118,7 +130,7 @@ export class Quality {
   // デバッグ表示用の文字
   describe() {
     return '画質 ' + this.level + '  解像度 ' + Math.round(this.scale * 100) + '%' +
-           '  省電力 ' + (this.powerSave ? 'ON' : 'OFF');
+           '  省電力 ' + (this.powerSave ? 'ON' : 'OFF') + '  上限 ' + (this.halfRate ? 30 : this.cap) + '回/秒';
   }
 }
 
