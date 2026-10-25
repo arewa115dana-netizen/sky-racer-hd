@@ -2,13 +2,15 @@
   ファイル名 : Environment.js
   保存場所   : /js/world
   役割       : 背景。空・太陽・雲海・浮遊島・遠景の島・古代遺跡のアーチ・神殿の柱と門。
+               浮遊島の上とコースの路肩には、ドット絵の草木を置く（Decor.js）
                スマホで軽く動くよう、重い後処理を使わず「見た目だけ再現」する
                （ぼかした遠景で被写界深度風、光る板で軽量ブルーム風）
-  バージョン : 0.3.2（Phase3 Step3-2）
+  バージョン : 0.8.5（Phase8 Step8-5）
 */
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import { buildDecor } from './Decor.js';
 
 export class Environment {
   constructor(scene, quality, track) {
@@ -17,6 +19,7 @@ export class Environment {
     this.track = track;
     this.cloudLayers = [];
     this.time = 0;
+    this.islandSpots = [];   // 置いた浮遊島の位置と大きさ（草木を置くのに使う）
 
     const e = CONFIG.environment;
     const low = quality.level === 'low';
@@ -37,6 +40,8 @@ export class Environment {
     scene.add(this.buildRuins());
     scene.add(this.buildTempleColumns());
     scene.add(this.buildTempleGate());
+    // 草木（浮遊島の上と、コースの路肩）
+    scene.add(buildDecor(track, this.islandSpots, quality.level));
   }
 
   // 毎フレーム呼ぶ（カメラを動かした後）
@@ -181,9 +186,11 @@ export class Environment {
         const z = center.z + Math.cos(angle) * dist;
         const size = 5 + random() * 16;
         if (this.distanceToTrack(x, z) < e.islandClearance + size) continue;
-        dummy.position.set(x, -18 + random() * 50, z);
+        const y = -18 + random() * 50;
+        dummy.position.set(x, y, z);
         dummy.rotation.set(0, random() * Math.PI * 2, 0);
         dummy.scale.set(size, size * (0.8 + random() * 0.6), size);
+        this.islandSpots.push({ x, y, z, size });
         dummy.updateMatrix();
         mesh.setMatrixAt(placed, dummy.matrix);
         placed += 1;
@@ -337,35 +344,52 @@ function makeBoxInstances(boxes, color) {
   return mesh;
 }
 
-// 浮遊島の形（上に平らな草地、下に尖った岩）。大きさ1の基準形
+// 浮遊島の形（上に平らな草地、その下に土の層、いちばん下に尖った岩）。大きさ1の基準形
 function makeIslandGeometry(grassHex, rockHex) {
-  const sides = 7;
+  const sides = 9;
   const positions = [];
   const colors = [];
   const grass = new THREE.Color(grassHex);
+  const grassEdge = new THREE.Color(grassHex).multiplyScalar(0.8);
+  const dirt = new THREE.Color(CONFIG.decor.dirtColor);
+  const dirtDark = new THREE.Color(CONFIG.decor.dirtColor).multiplyScalar(0.8);
   const rock = new THREE.Color(rockHex);
-  const rockDark = new THREE.Color(rockHex).multiplyScalar(0.7);
+  const rockDark = new THREE.Color(rockHex).multiplyScalar(0.72);
   const push = (v, c) => {
     positions.push(v[0], v[1], v[2]);
     colors.push(c.r, c.g, c.b);
   };
+  const tri = (a, b, c, color) => { push(a, color); push(b, color); push(c, color); };
+  // 高さごとの輪（[高さ, 広がり]）：草地のふち → 草の垂れ → 土 → 岩の中ほど
+  const ring = (k, y, scale) => {
+    const a = (k / sides) * Math.PI * 2;
+    const r = (1 + 0.15 * Math.sin(k * 2.3)) * scale;
+    return [Math.cos(a) * r, y, Math.sin(a) * r];
+  };
   for (let k = 0; k < sides; k += 1) {
-    const a0 = (k / sides) * Math.PI * 2;
-    const a1 = ((k + 1) / sides) * Math.PI * 2;
-    const r0 = 1 + 0.15 * Math.sin(k * 2.3);
-    const r1 = 1 + 0.15 * Math.sin((k + 1) * 2.3);
-    const top0 = [Math.cos(a0) * r0, 0, Math.sin(a0) * r0];
-    const top1 = [Math.cos(a1) * r1, 0, Math.sin(a1) * r1];
+    const k1 = k + 1;
+    const top0 = ring(k, 0, 1);
+    const top1 = ring(k1, 0, 1);
+    const lip0 = ring(k, -0.12, 0.98);    // 草が少し垂れる
+    const lip1 = ring(k1, -0.12, 0.98);
+    const dirt0 = ring(k, -0.45, 0.85);   // 土の層の下端
+    const dirt1 = ring(k1, -0.45, 0.85);
+    const mid0 = ring(k, -1.0, 0.5);      // 岩の中ほど
+    const mid1 = ring(k1, -1.0, 0.5);
+    const bottom = [0.08 * Math.sin(k), -1.7, 0.08 * Math.cos(k)];
+    const odd = k % 2 === 1;
     // 草地（上の面）
-    push([0, 0.05, 0], grass);
-    push(top1, grass);
-    push(top0, grass);
-    // 岩（下の尖り）
-    const bottom = [0, -1.6, 0];
-    const shade = k % 2 === 0 ? rock : rockDark;
-    push(top0, shade);
-    push(top1, shade);
-    push(bottom, shade);
+    tri([0, 0.05, 0], top1, top0, grass);
+    // 草の垂れ
+    tri(top0, top1, lip1, grassEdge);
+    tri(top0, lip1, lip0, grassEdge);
+    // 土の層
+    tri(lip0, lip1, dirt1, odd ? dirtDark : dirt);
+    tri(lip0, dirt1, dirt0, odd ? dirtDark : dirt);
+    // 岩
+    tri(dirt0, dirt1, mid1, odd ? rockDark : rock);
+    tri(dirt0, mid1, mid0, odd ? rockDark : rock);
+    tri(mid0, mid1, bottom, odd ? rock : rockDark);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
