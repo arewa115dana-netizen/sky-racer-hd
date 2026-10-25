@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.10.2（Phase10 Step10-2）
+  バージョン : 0.10.3（Phase10 Step10-3）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.10.2',
+  VERSION: '0.10.3',
 
   // ゲームループ
   loop: {
@@ -75,7 +75,12 @@ export const CONFIG = {
     driftVolume: 0.12,   // ドリフトの「シャーッ」の大きさ
     bumpSoundInterval: 0.4, // ぶつかる音を鳴らす最短の間隔（秒）。もみ合いで鳴りすぎないように
     musicVolume: 0.5,    // BGMの大きさ（0〜1。設定の「BGM」で変えられる）
-    finalLapTempo: 1.12  // 最終周でBGMを何倍の速さにするか
+    finalLapTempo: 1.12, // 最終周でBGMを何倍の速さにするか
+    windVolume: 0.22,    // 風の音の一番大きいとき
+    windStartSpeed: 0.35,// この速さ（最高速に対する割合）から風の音が聞こえ始める
+    windGroundRatio: 0.4,// 地上での風の音の大きさ（空中を1としたとき）
+    ringComboTime: 4.0,  // この秒数以内に次のリングを取ると「連続」になり、音が高くなる
+    ringComboMax: 6      // 連続で音が上がるのは何段まで
   },
 
   // ---- 遺跡と神殿の建物（Step8-6） ----
