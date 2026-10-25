@@ -3,7 +3,7 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.9.1b（Phase9 Step9-1 修正）
+  バージョン : 0.9.4b（Phase9 Step9-4 修正）
   メモ       : エンジン音・ブースト音・リング音・ドリフト音・ミニターボ音。
                BGMと他の効果音はPhase10で追加する
 */
@@ -115,6 +115,12 @@ export class AudioManager {
     this.engineOsc.frequency.setTargetAtTime(55 + r * 110, now, 0.08);
     this.engineFilter.frequency.setTargetAtTime(400 + r * 900, now, 0.08);
     this.engineGain.gain.setTargetAtTime(CONFIG.audio.engineVolume * (0.4 + r * 0.6), now, 0.1);
+  }
+
+  // エンジン音を完全に消す（レースを片付けるとき。次のレースの setEngine でまた鳴り出す）
+  silenceEngine() {
+    if (!this.engineGain) return;
+    this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
   }
 
   // ---- ドリフト音 ----
