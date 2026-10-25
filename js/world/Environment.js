@@ -3,14 +3,16 @@
   保存場所   : /js/world
   役割       : 背景。空・太陽・雲海・浮遊島・遠景の島・古代遺跡のアーチ・神殿の柱と門。
                浮遊島の上とコースの路肩には、ドット絵の草木を置く（Decor.js）
+               遺跡と神殿の建物は Buildings.js が作る
                スマホで軽く動くよう、重い後処理を使わず「見た目だけ再現」する
                （ぼかした遠景で被写界深度風、光る板で軽量ブルーム風）
-  バージョン : 0.8.5（Phase8 Step8-5）
+  バージョン : 0.8.6（Phase8 Step8-6）
 */
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { buildDecor } from './Decor.js';
+import { buildBuildings } from './Buildings.js';
 
 export class Environment {
   constructor(scene, quality, track) {
@@ -37,9 +39,8 @@ export class Environment {
     this.buildClouds(low ? 1 : 2);
     scene.add(this.buildFarIslands(low ? 6 : 10));
     scene.add(this.buildIslands(low ? Math.round(e.islandCount / 2) : e.islandCount));
-    scene.add(this.buildRuins());
-    scene.add(this.buildTempleColumns());
-    scene.add(this.buildTempleGate());
+    // 遺跡のアーチ・神殿の柱・ゴールの門
+    scene.add(buildBuildings(track));
     // 草木（浮遊島の上と、コースの路肩）
     scene.add(buildDecor(track, this.islandSpots, quality.level));
   }
@@ -202,89 +203,6 @@ export class Environment {
     return mesh;
   }
 
-  // ---- 古代遺跡（空中ルートをまたぐアーチ。いくつかは崩れている） ----
-  buildRuins() {
-    const e = CONFIG.environment;
-    const track = this.track;
-    const boxes = [];
-    const p = {};
-    let n = 0;
-    for (let i = 0; i < track.count; i += Math.round(e.archSpacing / track.step)) {
-      if (track.area[i] !== 'ruins' || track.zone[i] !== 'air') continue;
-      const s = i * track.step;
-      const half = track.width[i] / 2 + 2;
-      const yaw = track.yaw[i];
-      const broken = n % 3 === 2;
-      // 左右の柱（中心線の14 m下から、梁の高さまで。崩れた柱は途中まで）
-      const bottom = -14;
-      const full = e.archHeight - bottom;
-      for (const side of [-1, 1]) {
-        const height = broken && side > 0 ? full * 0.5 : full;
-        track.toWorld(s, side * half, bottom + height / 2, p);
-        boxes.push({ x: p.x, y: p.y, z: p.z, sx: 3, sy: height, sz: 3, yaw });
-      }
-      // 上の梁（崩れたアーチにはない）
-      if (!broken) {
-        track.toWorld(s, 0, e.archHeight, p);
-        boxes.push({ x: p.x, y: p.y, z: p.z, sx: half * 2 + 3, sy: 2.5, sz: 3, yaw });
-      }
-      n += 1;
-    }
-    return makeBoxInstances(boxes, e.ruinColor);
-  }
-
-  // ---- 神殿の柱（神殿の道の両側に並ぶ白い柱） ----
-  buildTempleColumns() {
-    const e = CONFIG.environment;
-    const track = this.track;
-    const spots = [];
-    const p = {};
-    const every = Math.round(e.columnSpacing / track.step);
-    for (let i = 0; i < track.count; i += every) {
-      if (track.area[i] !== 'temple' || track.zone[i] !== 'ground') continue;
-      for (const side of [-1, 1]) {
-        track.toWorld(i * track.step, side * (track.width[i] / 2 + 3), 0, p);
-        spots.push({ x: p.x, y: p.y, z: p.z });
-      }
-    }
-    const geo = new THREE.CylinderGeometry(0.9, 1.1, e.columnHeight, 8);
-    geo.translate(0, e.columnHeight / 2, 0);
-    const mesh = new THREE.InstancedMesh(
-      geo,
-      new THREE.MeshLambertMaterial({ color: e.templeColor }),
-      Math.max(1, spots.length)
-    );
-    const dummy = new THREE.Object3D();
-    spots.forEach((s, k) => {
-      dummy.position.set(s.x, s.y, s.z);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(k, dummy.matrix);
-    });
-    mesh.count = spots.length;
-    mesh.instanceMatrix.needsUpdate = true;
-    return mesh;
-  }
-
-  // ---- ゴールの門（スタートライン少し手前） ----
-  buildTempleGate() {
-    const e = CONFIG.environment;
-    const track = this.track;
-    const s = track.length - 12;
-    const half = track.widthAt(s) / 2 + 3;
-    const yaw = track.yawAt(s);
-    const p = {};
-    const boxes = [];
-    for (const side of [-1, 1]) {
-      track.toWorld(s, side * half, 0, p);
-      boxes.push({ x: p.x, y: p.y + 7, z: p.z, sx: 2.6, sy: 14, sz: 2.6, yaw });
-    }
-    track.toWorld(s, 0, 14.5, p);
-    boxes.push({ x: p.x, y: p.y, z: p.z, sx: half * 2 + 6, sy: 2.4, sz: 3.4, yaw });
-    track.toWorld(s, 0, 17, p);
-    boxes.push({ x: p.x, y: p.y, z: p.z, sx: half * 2 - 2, sy: 2.6, sz: 2.6, yaw });
-    return makeBoxInstances(boxes, e.templeColor);
-  }
-
   // ---- 補助 ----
 
   // コースの中心（上から見た範囲の真ん中）
@@ -321,27 +239,6 @@ function seededRandom(seed) {
     s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
-}
-
-// 箱をまとめて1回で描く（遺跡・門）
-function makeBoxInstances(boxes, color) {
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  const mesh = new THREE.InstancedMesh(
-    geo,
-    new THREE.MeshLambertMaterial({ color }),
-    Math.max(1, boxes.length)
-  );
-  const dummy = new THREE.Object3D();
-  boxes.forEach((b, k) => {
-    dummy.position.set(b.x, b.y, b.z);
-    dummy.rotation.set(0, b.yaw, 0);
-    dummy.scale.set(b.sx, b.sy, b.sz);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(k, dummy.matrix);
-  });
-  mesh.count = boxes.length;
-  mesh.instanceMatrix.needsUpdate = true;
-  return mesh;
 }
 
 // 浮遊島の形（上に平らな草地、その下に土の層、いちばん下に尖った岩）。大きさ1の基準形
