@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.5.2（Phase5 Step5-2）
+  バージョン : 0.8.3（Phase8 Step8-3）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                タイトル・キャラ選択などの画面はPhase9で追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
@@ -23,6 +23,7 @@ import { Environment } from '../world/Environment.js';
 import { CHARACTERS } from '../entities/Characters.js';
 import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
+import { Atmosphere } from '../render/Atmosphere.js';
 import { RaceSession } from '../systems/RaceSession.js';
 
 export class Game {
@@ -42,6 +43,7 @@ export class Game {
     this.audio = null;
     this.track = null;
     this.environment = null;
+    this.atmosphere = null;    // 光の筋・光る粒・周辺減光
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
     this.playerCharIndex = 0;  // プレイヤーのキャラクター番号
@@ -72,6 +74,8 @@ export class Game {
 
     // 背景：空・雲海・浮遊島・遺跡・神殿
     this.environment = new Environment(this.scene, this.quality, this.track);
+    // HD-2Dらしい空気感（光の筋・光る粒・周辺減光）
+    this.atmosphere = new Atmosphere(this.scene, this.quality);
 
     // 全キャラクターのドット絵を1枚の画像にまとめて作る
     this.atlas = buildAtlas(CHARACTERS);
@@ -229,6 +233,10 @@ export class Game {
   render(alpha, frameTime) {
     if (this.state === 'RACE' && this.session) {
       this.session.render(alpha, frameTime, this.environment, this.loop.paused);
+    }
+    // 空気感の演出（カメラを動かした後に。一時停止中は止める）
+    if (!this.loop.paused) {
+      this.atmosphere.update(frameTime, this.camera);
     }
 
     // 画質の自動調整と、省電力モードでの描画の間引き
