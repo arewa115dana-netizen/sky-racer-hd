@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.8.2（Phase8 Step8-2）
+  バージョン : 0.8.3（Phase8 Step8-3）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.8.2',
+  VERSION: '0.8.3',
 
   // ゲームループ
   loop: {
@@ -73,6 +73,25 @@ export const CONFIG = {
     engineVolume: 0.08,  // エンジン音の大きさ
     sfxVolume: 0.5,      // 効果音の大きさ
     driftVolume: 0.12    // ドリフトの「シャーッ」の大きさ
+  },
+
+  // ---- HD-2Dの空気感（Step8-3） ----
+  atmosphere: {
+    rays: true,             // 太陽の光の筋を出すか
+    rayCount: 7,            // 光の筋の本数
+    rayLength: 260,         // 光の筋の長さ（太陽のある遠くでの長さ。メートル）
+    rayColor: 0xfff0c8,     // 光の筋の色
+    rayIntensity: 0.22,     // 光の筋の明るさ（0〜1。上げすぎると白っぽくなる）
+    rayFadeStart: 0.3,      // カメラがどれだけ太陽を向いたら光の筋が出始めるか（0〜1）
+    moteCountHigh: 70,      // 光る粒の数（画質 high）
+    moteCountMid: 40,       // 光る粒の数（画質 mid。low は0）
+    moteSize: 0.35,         // 光る粒の大きさ（メートル）
+    moteRange: 25,          // カメラのまわり何メートルに粒を置くか
+    moteRise: 0.25,         // 粒がゆっくり上がる速さ（メートル/秒）
+    moteDrift: 0.6,         // 粒の横揺れの速さ
+    moteColor: 0xffe9a8,    // 粒の色
+    vignette: true,         // 画面の四隅を少し暗くするか
+    vignetteColor: 'rgba(20, 25, 60, 0.35)' // 四隅の色と濃さ
   },
 
   // ---- 粒の演出（Step7-2） ----
