@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.11.1（Phase11 Step11-1）
+  バージョン : 0.11.2（Phase11 Step11-2）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -70,6 +70,9 @@ export class Game {
     this.setupRenderer();
     this.quality = new Quality(this.renderer);
     this.postfx = new PostFX(this.renderer, this.quality);
+    // 解像度を一番下げても重いときに、見た目の飾りを1段ずつ減らす
+    this.shedLevel = 0;
+    this.quality.onShed = () => this.shedLoad();
     this.audio = new AudioManager();
     this.setupScene();
 
@@ -141,6 +144,19 @@ export class Game {
     this.precompile();
     const ch = CHARACTERS[playerCharIndex];
     this.debug.log(ch.name + '（' + ch.type + '）でスタート');
+  }
+
+  // ---- 自動軽量化：見た目への影響が小さい順に、1段ずつ減らす（一度減らしたら、その回は戻さない） ----
+  shedLoad() {
+    while (this.shedLevel < SHED_STEPS.length) {
+      const step = SHED_STEPS[this.shedLevel];
+      this.shedLevel += 1;
+      if (step.run(this)) {
+        this.debug.log('自動軽量化 ' + this.shedLevel + '：' + step.label);
+        return;
+      }
+      // その端末では最初から無いもの（画質lowで光る粒がない等）は飛ばして次へ
+    }
   }
 
   // 画面に映っていない物も含めて、全部の描き方（シェーダー）と画像を準備する
@@ -313,9 +329,6 @@ export class Game {
 
     // 画質の自動調整と、省電力モードでの描画の間引き
     this.quality.sample(frameTime);
-    const wasOn = this.postfx.enabled;
-    this.postfx.watch(frameTime);
-    if (wasOn && !this.postfx.enabled) this.debug.log(this.postfx.describe());
     if (this.quality.shouldRender(frameTime)) {
       this.renderer.info.reset();
       this.postfx.render(this.scene, this.camera);
@@ -334,7 +347,8 @@ export class Game {
     const lines = willRefresh && this.session ? this.session.describe(this.lastInput) : [];
     if (willRefresh) {
       lines.push(this.quality.describe() + '  音 ' + (this.audio.isRunning() ? 'ON' : (this.audio.unlocked ? '停止中' : '未')));
-      lines.push(this.postfx.describe());
+      lines.push(this.postfx.describe() + '  自動軽量化 ' + this.shedLevel + '/' + SHED_STEPS.length +
+        '  平均FPS ' + Math.round(this.quality.lastFps));
     }
     this.debug.update(frameTime, {
       state: this.loop.paused ? '一時停止中' : this.state,
@@ -344,3 +358,19 @@ export class Game {
     });
   }
 }
+
+// 自動軽量化の段階（上から順に。run が true を返したら、その段階を実行したことになる）
+const SHED_STEPS = [
+  {
+    label: '仕上げ処理（ぼかし・光のにじみ）をOFF',
+    run: (game) => {
+      if (!game.postfx.enabled) return false;
+      game.postfx.enabled = false;
+      game.postfx.autoOff = true;
+      return true;
+    }
+  },
+  { label: '光る粒・光の筋をOFF', run: (game) => game.atmosphere.reduce() },
+  { label: '草・花・茂みを非表示', run: (game) => game.environment.reduce('smallDecor') },
+  { label: '下の雲の層を非表示', run: (game) => game.environment.reduce('clouds') }
+];
