@@ -3,8 +3,8 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.10.2（Phase10 Step10-2）
-  メモ       : ずっと鳴る音（エンジン音・ドリフト音）はここで作る。
+  バージョン : 0.10.3（Phase10 Step10-3）
+  メモ       : ずっと鳴る音（エンジン音・ドリフト音・風の音）はここで作る。
                1回だけ鳴る効果音のレシピは Sfx.js、BGMの楽譜と演奏は Music.js にまとめてある
 */
 
@@ -28,6 +28,11 @@ export class AudioManager {
     this.driftGain = null;
     this.driftFilter = null;
     this.driftLevel = -2;   // 前回の段階（変わったときだけ音を変える）
+
+    // 風の音（速く飛ぶほど強く。変わったときだけ音を変える）
+    this.windGain = null;
+    this.windFilter = null;
+    this.windLevel = -1;
 
     // BGM（音を使えるようになってから作る。それまでは「流したい曲」だけ覚えておく）
     this.music = null;
@@ -59,6 +64,7 @@ export class AudioManager {
       this.master.connect(this.ctx.destination);
       this.startEngine();
       this.startDrift();
+      this.startWind();
       this.music = new Music(this.ctx, this.master);
       this.music.setVolume(this.musicVolume);
       if (this.wantedMusic) this.music.play(this.wantedMusic);
@@ -175,11 +181,51 @@ export class AudioManager {
     this.driftGain.gain.setTargetAtTime(CONFIG.audio.driftVolume, now, 0.04);
   }
 
+  // ---- 風の音 ----
+  // 2秒分のザーッという音を低めの音だけ通して、ゴーッという風にする。最初は音量0
+  startWind() {
+    const ctx = this.ctx;
+    const length = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    // 少しなめらかにした雑音（細かいザラつきを減らして、風らしく）
+    let last = 0;
+    for (let i = 0; i < length; i += 1) {
+      last = last * 0.9 + (Math.random() * 2 - 1) * 0.1;
+      data[i] = last * 3;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    this.windFilter = ctx.createBiquadFilter();
+    this.windFilter.type = 'bandpass';
+    this.windFilter.frequency.value = 400;
+    this.windFilter.Q.value = 0.7;
+    this.windGain = ctx.createGain();
+    this.windGain.gain.value = 0;
+    src.connect(this.windFilter);
+    this.windFilter.connect(this.windGain);
+    this.windGain.connect(this.master);
+    src.start();
+  }
+
+  // 風の強さ（0〜1）。0.02以上変わったときだけ音を変える（毎フレーム予約しない）
+  setWind(level) {
+    if (!this.windGain) return;
+    const v = Math.max(0, Math.min(1, level));
+    if (Math.abs(v - this.windLevel) < 0.02 && !(v === 0 && this.windLevel !== 0)) return;
+    this.windLevel = v;
+    const now = this.ctx.currentTime;
+    this.windGain.gain.setTargetAtTime(CONFIG.audio.windVolume * Math.pow(v, 1.5), now, 0.15);
+    this.windFilter.frequency.setTargetAtTime(350 + v * 900, now, 0.15);
+  }
+
   // ---- 効果音（レシピは Sfx.js） ----
-  play(name) {
+  // options は音ごとの追加の指定（例：リングの音の高さ { pitch: 1.12 }）
+  play(name, options) {
     if (!this.unlocked || this.paused || !this.isRunning()) return;
     const recipe = SFX[name];
-    if (recipe) recipe(this.ctx, this.master, CONFIG.audio.sfxVolume);
+    if (recipe) recipe(this.ctx, this.master, CONFIG.audio.sfxVolume, options || {});
   }
 
   // ---- BGM（楽譜と演奏は Music.js） ----
