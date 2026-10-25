@@ -2,8 +2,8 @@
   ファイル名 : HUD.js
   保存場所   : /js/ui
   役割       : レース中の画面表示。順位・周回・タイム・ブーストゲージ・
-               カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）
-  バージョン : 0.5.1（Phase5 Step5-1）
+               カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）・結果表
+  バージョン : 0.5.2（Phase5 Step5-2）
   メモ       : 表示はHTMLの文字で行う（3Dより軽い）。
                変わったときだけ書き換えて、無駄な処理をしない。
                見た目の仕上げはPhase9で行う
@@ -88,6 +88,32 @@ export class HUD {
   hideBanner() {
     this.bannerEl.classList.remove('show');
     this.bannerTimer = 0;
+  }
+
+  /**
+   * 結果表を出す
+   * @param {Array} rows [{ rank, name, time(秒 または null), isPlayer }]
+   * @param {function} onRetry 「もう一度」が押されたときに呼ぶ関数
+   */
+  showResults(rows, onRetry) {
+    let html = '<div class="results-title">RESULT</div><table class="results-table">';
+    for (const r of rows) {
+      const time = r.time !== null ? formatTime(r.time) : '記録なし';
+      html += '<tr class="' + (r.isPlayer ? 'me' : '') + '">' +
+        '<td class="results-rank">' + r.rank + '位</td>' +
+        '<td class="results-name">' + r.name + (r.isPlayer ? '（あなた）' : '') + '</td>' +
+        '<td class="results-time">' + time + '</td></tr>';
+    }
+    html += '</table><button class="results-retry" type="button">もう一度</button>';
+
+    const box = document.createElement('div');
+    box.className = 'results';
+    box.innerHTML = html;
+    this.root.appendChild(box);
+    this.resultsEl = box;
+
+    const button = box.querySelector('.results-retry');
+    button.addEventListener('click', () => onRetry());
   }
 
   setVisible(visible) {
