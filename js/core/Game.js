@@ -3,12 +3,11 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.9.2（Phase9 Step9-2）
+  バージョン : 0.9.3（Phase9 Step9-3）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
-               画面の流れ：タイトル（Title.js）→ キャラ選択（CharacterSelect.js）→ レース。
-               設定は Phase9 の続きで追加する
-               PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え、
-               F で仕上げ処理（ティルトシフト・ブルーム・色づくり）の ON / OFF
+               画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
+               PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
+               F で仕上げ処理の ON / OFF（どちらも設定に保存される）
 */
 
 import * as THREE from 'three';
@@ -28,8 +27,7 @@ import { CameraRig } from '../render/CameraRig.js';
 import { Atmosphere } from '../render/Atmosphere.js';
 import { PostFX } from '../render/PostFX.js';
 import { RaceSession } from '../systems/RaceSession.js';
-import { Title } from '../ui/Title.js';
-import { CharacterSelect } from '../ui/CharacterSelect.js';
+import { Screens } from './Screens.js';
 
 export class Game {
   constructor(container) {
@@ -52,11 +50,7 @@ export class Game {
     this.postfx = null;        // 画面全体の仕上げ（ティルトシフト・ブルーム・色づくり）
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
-    this.playerCharIndex = loadCharIndex();  // プレイヤーのキャラクター番号（前回選んだキャラ）
-    this.title = null;         // タイトル画面（表示中だけ）
-    this.titleTime = 0;        // タイトルの背景でカメラが飛んだ時間
-    this.titleLook = new THREE.Vector3();
-    this.titlePoint = { x: 0, y: 0, z: 0 };
+    this.screens = null;       // 画面の流れ（Screens.js）
 
     // 実際に描いた回数（省電力モードでの本当のFPS）
     this.drawnFrames = 0;
@@ -93,8 +87,11 @@ export class Game {
     this.cameraRig = new CameraRig(this.camera);
 
     this.input = new Input(this.renderer.domElement);
-    this.input.onPause = () => this.togglePause();
+    // 「II」ボタン・Esc キーで一時停止メニュー
+    this.input.onPause = () => this.screens.togglePauseMenu();
     this.debug = new Debug(this.renderer);
+    this.screens = new Screens(this);
+    this.screens.applyAllSettings();   // 保存してある設定（音量・省電力など）を反映
     this.setupEvents();
 
     this.loop = new Loop({
@@ -104,80 +101,15 @@ export class Game {
       render: (alpha, frameTime) => this.render(alpha, frameTime)
     });
 
-    this.showTitle();
+    this.screens.showTitle();
     this.loop.start();
 
     // 結果表が出ているときは Enter キーでも「もう一度」
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Enter' && this.session && this.session.resultsShown) {
-        this.startRace(this.playerCharIndex);
+        this.startRace(this.screens.charIndex);
       }
     });
-  }
-
-  // ---- タイトル画面を出す（レース中なら片付けてから） ----
-  showTitle() {
-    if (this.session) {
-      this.session.dispose();
-      this.session = null;
-      this.titleTime = 0;   // レースから戻ったときは、背景のカメラを最初から
-    }
-    this.input.setEnabled(false);
-    document.body.classList.add('in-menu');   // 操作部品を隠す（style.css）
-    this.debug.setVisible(false);
-    this.setState('TITLE');
-    this.title = new Title(() => this.onTitleStart());
-  }
-
-  // タイトルでタップされた
-  onTitleStart() {
-    this.title = null;
-    // タップ（指を離した瞬間）の中で、もう一度確実に音を再開する
-    this.audio.unlock();
-    this.showCharacterSelect();
-  }
-
-  // ---- キャラクター選択画面を出す（背景はタイトルと同じく、コースを飛ぶカメラ） ----
-  showCharacterSelect() {
-    if (this.session) {
-      this.session.dispose();
-      this.session = null;
-    }
-    this.input.setEnabled(false);
-    document.body.classList.add('in-menu');
-    this.debug.setVisible(false);
-    this.setState('SELECT');
-    new CharacterSelect({
-      characters: CHARACTERS,
-      atlasCanvas: this.atlas.texture.image,
-      index: this.playerCharIndex,
-      onDecide: (index) => {
-        saveCharIndex(index);
-        document.body.classList.remove('in-menu');
-        this.debug.setVisible(CONFIG.debug.show);
-        this.startRace(index);
-      },
-      onBack: () => this.showTitle(),
-      onSound: (name) => {
-        if (name === 'decide') this.audio.play('ring');
-      }
-    });
-  }
-
-  // タイトルの背景：カメラがコースの上をゆっくり飛び、少し先を見る
-  updateTitleCamera(frameTime) {
-    const u = CONFIG.ui;
-    const t = this.track;
-    this.titleTime += frameTime;
-    const s = (u.titleCameraStart + this.titleTime * u.titleCameraSpeed) % t.length;
-    const sway = Math.sin(this.titleTime * 0.25) * u.titleCameraSway;
-    const p = this.titlePoint;
-    t.toWorld(s, sway, u.titleCameraHeight, p);
-    this.camera.position.set(p.x, p.y, p.z);
-    t.toWorld(s + u.titleCameraLook, 0, u.titleCameraHeight * 0.4, p);
-    this.titleLook.set(p.x, p.y, p.z);
-    this.camera.lookAt(this.titleLook);
-    this.environment.update(frameTime, this.camera.position);
   }
 
   // ---- レースを始める（前のレースがあれば片付けてから） ----
@@ -185,7 +117,7 @@ export class Game {
     if (this.session) {
       this.session.dispose();
     }
-    this.playerCharIndex = playerCharIndex;
+    this.screens.charIndex = playerCharIndex;
     this.input.setEnabled(true);
     this.session = new RaceSession({
       scene: this.scene,
@@ -196,7 +128,7 @@ export class Game {
       audio: this.audio,
       debug: this.debug,
       playerCharIndex,
-      onRetry: () => this.startRace(this.playerCharIndex)
+      onRetry: () => this.startRace(this.screens.charIndex)
     });
     this.setState('RACE');
     const ch = CHARACTERS[playerCharIndex];
@@ -209,15 +141,8 @@ export class Game {
     this.stateParams = params;
   }
 
-  togglePause() {
-    if (!this.loop) return;
-    this.loop.setPaused(!this.loop.paused);
-    this.audio.setPaused(this.loop.paused);
-    this.debug.log(this.loop.paused ? '一時停止' : '再開');
-  }
-
   togglePowerSave() {
-    this.quality.setPowerSave(!this.quality.powerSave);
+    this.screens.setSetting('powerSave', !this.quality.powerSave);
     this.debug.log('省電力モード ' + (this.quality.powerSave ? 'ON（30FPS）' : 'OFF'));
   }
 
@@ -280,14 +205,14 @@ export class Game {
         this.togglePowerSave();
       }
       if (e.code === 'KeyF' && !e.repeat) {
-        this.postfx.toggle();
+        this.screens.setSetting('postfx', !this.postfx.enabled);
         this.debug.log(this.postfx.describe());
       }
-      if (e.code.startsWith('Digit') && this.session) {
+      if (e.code.startsWith('Digit') && this.session && this.state === 'RACE') {
         const n = Number(e.code.slice(5));
         if (n >= 1 && n <= CHARACTERS.length) {
           this.session.selectCharacter(n - 1);
-          this.playerCharIndex = n - 1;
+          this.screens.charIndex = n - 1;
         }
       }
     });
@@ -317,7 +242,7 @@ export class Game {
     if (this.state === 'RACE' && this.session) {
       this.session.render(alpha, frameTime, this.environment, this.loop.paused);
     } else if ((this.state === 'TITLE' || this.state === 'SELECT') && !this.loop.paused) {
-      this.updateTitleCamera(frameTime);
+      this.screens.updateTitleCamera(frameTime);
     }
     // 空気感の演出（カメラを動かした後に。一時停止中は止める）
     if (!this.loop.paused) {
@@ -355,26 +280,5 @@ export class Game {
       pixelRatio: this.quality.pixelRatio,
       lines
     });
-  }
-}
-
-// ---- 選んだキャラの保存（次に開いたときも同じキャラから） ----
-// 保存できない環境（プライベートモードなど）でも動くよう、失敗は無視する
-const CHAR_KEY = 'skyRacer.character';
-
-function loadCharIndex() {
-  try {
-    const v = Number(window.localStorage.getItem(CHAR_KEY));
-    return Number.isInteger(v) && v >= 0 && v < CHARACTERS.length ? v : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-function saveCharIndex(index) {
-  try {
-    window.localStorage.setItem(CHAR_KEY, String(index));
-  } catch (e) {
-    // 保存できなくても遊べるので何もしない
   }
 }
