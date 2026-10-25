@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.11.2（Phase11 Step11-2）
+  バージョン : 0.11.3（Phase11 Step11-3）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -327,7 +327,9 @@ export class Game {
       this.atmosphere.update(frameTime, this.camera);
     }
 
-    // 画質の自動調整と、省電力モードでの描画の間引き
+    // 画質の自動調整と、描く回数の間引き（場面ごとの上限：レース60・メニュー30・一時停止10）
+    const q = CONFIG.quality;
+    this.quality.setCap(this.loop.paused ? q.pausedFps : (this.state === 'RACE' ? q.maxFps : q.menuFps));
     this.quality.sample(frameTime);
     if (this.quality.shouldRender(frameTime)) {
       this.renderer.info.reset();
@@ -372,5 +374,14 @@ const SHED_STEPS = [
   },
   { label: '光る粒・光の筋をOFF', run: (game) => game.atmosphere.reduce() },
   { label: '草・花・茂みを非表示', run: (game) => game.environment.reduce('smallDecor') },
-  { label: '下の雲の層を非表示', run: (game) => game.environment.reduce('clouds') }
+  { label: '下の雲の層を非表示', run: (game) => game.environment.reduce('clouds') },
+  {
+    // ここまで減らしても60に届かないなら、40〜50でガタガタ揺れるより、30でそろえた方がなめらかに見える
+    label: 'レースも1秒30回にそろえる',
+    run: (game) => {
+      if (game.quality.halfRate) return false;
+      game.quality.halfRate = true;
+      return true;
+    }
+  }
 ];
