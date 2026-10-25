@@ -3,9 +3,10 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.2.2（Phase2 Step2-2）
-  メモ       : このステップでは仮の車を指とキーボードで操作する。
-               本番の物理とカメラはStep2-3で追加する
+  バージョン : 0.2.4（Phase2 Step2-4）
+  メモ       : このステップでは試走用オーバルコースを本番の物理で走る。
+               追従カメラはStep2-5、ドット絵はStep2-6で追加する
+               PCでは数字キー 1〜6 でキャラクターを切り替えられる（能力の確認用）
 */
 
 import * as THREE from 'three';
@@ -13,6 +14,9 @@ import { CONFIG } from '../config.js';
 import { Loop } from './Loop.js';
 import { Input } from './Input.js';
 import { Debug } from './Debug.js';
+import { TestTrack } from '../world/TestTrack.js';
+import { Racer } from '../entities/Racer.js';
+import { CHARACTERS } from '../entities/Characters.js';
 
 export class Game {
   constructor(container) {
@@ -28,22 +32,15 @@ export class Game {
     this.debug = null;
     this.pixelRatio = 1;
 
-    // 仮の車（Step2-3で本物のレーサーに置き換える）
-    this.car = {
-      x: 0, y: 0, z: 0, heading: 0,
-      prevX: 0, prevY: 0, prevZ: 0, prevHeading: 0,
-      speed: 0,
-      boostTime: 0,
-      drifting: false,
-      braking: false,
-      mesh: null
-    };
+    this.track = null;
+    this.player = null;
+    this.playerMesh = null;
 
     this.versionEl = document.getElementById('version');
 
     // 毎フレーム使い回す計算用の入れ物（毎回作らない）
     this.tmpLook = new THREE.Vector3();
-    this.debugLines = ['', '', ''];
+    this.debugLines = ['', '', '', ''];
   }
 
   // ---- 起動 ----
@@ -55,7 +52,19 @@ export class Game {
     this.setupRenderer();
     this.setupScene();
     this.buildTestField();
-    this.buildTestCar();
+
+    this.track = new TestTrack();
+    this.scene.add(this.track.buildMesh());
+
+    this.player = new Racer({
+      id: 0,
+      character: CHARACTERS[0],
+      track: this.track,
+      isPlayer: true
+    });
+    this.player.placeAt(0, 0);
+    this.buildPlayerMesh();
+
     this.setupEvents();
 
     this.input = new Input(this.renderer.domElement);
@@ -70,6 +79,7 @@ export class Game {
     });
 
     this.setState('TEST');
+    this.debug.log(this.player.character.name + '（' + this.player.character.type + '）');
     this.loop.start();
   }
 
@@ -83,6 +93,15 @@ export class Game {
     if (!this.loop) return;
     this.loop.setPaused(!this.loop.paused);
     this.debug.log(this.loop.paused ? '一時停止' : '再開');
+  }
+
+  // キャラクターの切り替え（能力の確認用）
+  selectCharacter(index) {
+    const ch = CHARACTERS[index];
+    if (!ch || !this.player) return;
+    this.player.setCharacter(ch);
+    this.playerBaseColor = ch.palette.main;
+    this.debug.log(ch.name + '（' + ch.type + '）');
   }
 
   // ---- 描画の準備 ----
@@ -119,11 +138,11 @@ export class Game {
     this.scene.add(sun);
   }
 
-  // ---- 試走場（平らな地面と目印の柱） ----
+  // ---- 試走場の地面と目印の柱 ----
   buildTestField() {
     const t = CONFIG.test;
+    const tt = CONFIG.testTrack;
 
-    // 地面
     const groundGeo = new THREE.PlaneGeometry(t.groundSize, t.groundSize);
     groundGeo.rotateX(-Math.PI / 2);
     const ground = new THREE.Mesh(
@@ -132,12 +151,11 @@ export class Game {
     );
     this.scene.add(ground);
 
-    // 速さが分かるように格子線を引く
     const grid = new THREE.GridHelper(t.groundSize, t.groundSize / 10, 0x3f7a35, 0x4f8a45);
-    grid.position.y = 0.02;
+    grid.position.y = 0.01;
     this.scene.add(grid);
 
-    // 目印の柱（インスタンス描画で1回にまとめる）
+    // 目印の柱（コースに重ならない場所だけに置く）
     const pillarGeo = new THREE.BoxGeometry(2, 1, 2);
     pillarGeo.translate(0, 0.5, 0);
     const pillars = new THREE.InstancedMesh(
@@ -146,44 +164,67 @@ export class Game {
       t.pillarCount
     );
 
-    // 毎回同じ配置になる乱数
     let seed = 12345;
     const random = () => {
       seed = (seed * 16807) % 2147483647;
       return (seed - 1) / 2147483646;
     };
 
+    // コースの外周＋余白の範囲
+    const outerX = tt.radius + tt.width + 6;
+    const outerZ = tt.straight / 2 + tt.radius + tt.width + 6;
+    // コースの内側（直線の間）の安全な範囲
+    const innerX = tt.radius - tt.width - 4;
+    const innerZ = tt.straight / 2;
+
     const dummy = new THREE.Object3D();
-    for (let i = 0; i < t.pillarCount; i += 1) {
-      const angle = random() * Math.PI * 2;
-      // スタート地点のまわりには置かない
-      const dist = t.demoRadius + random() * (t.groundSize / 2 - t.demoRadius - 10);
-      const height = 4 + random() * 16;
-      dummy.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
-      dummy.scale.set(1, height, 1);
+    const halfGround = t.groundSize / 2 - 4;
+    let placed = 0;
+    let tries = 0;
+    while (placed < t.pillarCount && tries < 5000) {
+      tries += 1;
+      const x = (random() * 2 - 1) * halfGround;
+      const z = (random() * 2 - 1) * halfGround;
+      const nearTrack = Math.abs(x) < outerX && Math.abs(z) < outerZ;
+      const inInfield = Math.abs(x) < innerX && Math.abs(z) < innerZ;
+      if (nearTrack && !inInfield) continue;
+      dummy.position.set(x, 0, z);
+      dummy.scale.set(1, 4 + random() * 16, 1);
       dummy.updateMatrix();
-      pillars.setMatrixAt(i, dummy.matrix);
+      pillars.setMatrixAt(placed, dummy.matrix);
+      placed += 1;
     }
+    pillars.count = placed;
     pillars.instanceMatrix.needsUpdate = true;
     this.scene.add(pillars);
   }
 
-  // ---- 仮の車 ----
-  buildTestCar() {
+  // ---- プレイヤーの見た目（仮の箱。Step2-6でドット絵に置き換える） ----
+  buildPlayerMesh() {
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.8, 2),
-      new THREE.MeshLambertMaterial({ color: 0xffb347 })
+      new THREE.MeshLambertMaterial({ color: 0xffffff })
     );
-    mesh.position.y = 0.4;
     this.scene.add(mesh);
-    this.car.mesh = mesh;
+    this.playerMesh = mesh;
+    this.playerBaseColor = this.player.character.palette.main;
   }
 
-  // ---- 画面の変化への対応 ----
+  // ---- 画面の変化・キー操作への対応 ----
   setupEvents() {
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('orientationchange', () => {
       setTimeout(() => this.onResize(), 200);
+    });
+
+    // 数字キー 1〜6 でキャラクター切り替え（PCでの能力確認用）
+    window.addEventListener('keydown', (e) => {
+      if (e.code.startsWith('Digit')) {
+        const n = Number(e.code.slice(5));
+        if (n >= 1 && n <= CHARACTERS.length) {
+          this.selectCharacter(n - 1);
+        }
+      }
     });
   }
 
@@ -200,67 +241,28 @@ export class Game {
     this.debug.countUpdate();
 
     if (this.state === 'TEST') {
-      this.updateTestCar(dt, this.input.getState());
+      const input = this.input.getState();
+      this.player.applyInput(input);
+      this.player.step(dt);
+      this.updateDebugLines(input);
     }
   }
 
-  // 仮の車の動き（動作確認用の簡単な計算。Step2-3で本番の物理に置き換える）
-  updateTestCar(dt, input) {
-    const t = CONFIG.test;
-    const car = this.car;
-
-    // 前回の位置を覚えておく（描画で滑らかにつなぐため）
-    car.prevX = car.x;
-    car.prevY = car.y;
-    car.prevZ = car.z;
-    car.prevHeading = car.heading;
-
-    // ブースト
-    if (input.boost && car.boostTime <= 0) {
-      car.boostTime = t.boostTime;
-      this.debug.log('ブースト！');
-    }
-    if (car.boostTime > 0) {
-      car.boostTime = Math.max(0, car.boostTime - dt);
-    }
-
-    // 自動アクセル（ブレーキ中は止まる方向へ）
-    let target = t.carSpeed;
-    if (car.boostTime > 0) target *= t.boostMultiplier;
-    if (input.brake) target = 0;
-    const rate = input.brake ? 3 : 1.5;
-    car.speed += (target - car.speed) * Math.min(1, dt * rate);
-
-    // 旋回（右入力で右へ曲がる）
-    car.heading -= input.steer * t.turnRate * dt;
-
-    // 前進
-    car.x += Math.sin(car.heading) * car.speed * dt;
-    car.z += Math.cos(car.heading) * car.speed * dt;
-
-    // 上下（入力確認用。本番では空中区間だけ有効になる）
-    car.y = clamp(car.y + input.pitch * t.liftSpeed * dt, 0, t.maxLift);
-
-    // 試走場の外に出ないようにする
-    const limit = t.groundSize / 2 - 5;
-    car.x = clamp(car.x, -limit, limit);
-    car.z = clamp(car.z, -limit, limit);
-
-    car.drifting = input.drift;
-    car.braking = input.brake;
-
-    // デバッグ表示用の文字
+  updateDebugLines(input) {
+    const p = this.player;
     this.debugLines[0] = '旋回 ' + fmt(input.steer) + '  上下 ' + fmt(input.pitch);
-    this.debugLines[1] = 'ドリフト ' + (input.drift ? '○' : '－') +
-                         '  ブレーキ ' + (input.brake ? '○' : '－') +
-                         '  ブースト残 ' + car.boostTime.toFixed(1);
-    this.debugLines[2] = '速度 ' + car.speed.toFixed(1) + ' m/s  高さ ' + car.y.toFixed(1) + ' m';
+    this.debugLines[1] = '速度 ' + (p.speed * 3.6).toFixed(0) + ' km/h  最高 ' +
+                         (p.maxSpeed * 3.6).toFixed(0) + ' km/h';
+    this.debugLines[2] = '周回 ' + p.lap + '  位置 ' + p.s.toFixed(0) + '/' +
+                         this.track.length.toFixed(0) + ' m  横 ' + fmt(p.x);
+    this.debugLines[3] = 'ゲージ ' + Math.round(p.gauge * 100) + '%  ブースト残 ' +
+                         p.boostTime.toFixed(1) + (p.wallHit ? '  壁' : '');
   }
 
   // ---- 描画（毎フレーム） ----
   render(alpha, frameTime) {
     if (this.state === 'TEST') {
-      this.renderTestCar(alpha);
+      this.renderPlayer(alpha);
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -273,38 +275,31 @@ export class Game {
     });
   }
 
-  // 仮の車とカメラの位置を決める
-  renderTestCar(alpha) {
+  // プレイヤーとカメラの位置を決める（カメラはStep2-5で専用の部品にする）
+  renderPlayer(alpha) {
     const c = CONFIG.camera;
-    const car = this.car;
+    const p = this.player;
+    p.computeRenderPose(alpha);
+    const pos = p.renderPos;
+    const yaw = p.renderYaw;
 
-    // 前回と今回の計算結果の間を補間して滑らかにする
-    const x = car.prevX + (car.x - car.prevX) * alpha;
-    const y = car.prevY + (car.y - car.prevY) * alpha;
-    const z = car.prevZ + (car.z - car.prevZ) * alpha;
-    const h = car.prevHeading + (car.heading - car.prevHeading) * alpha;
-    const fx = Math.sin(h);
-    const fz = Math.cos(h);
+    this.playerMesh.position.set(pos.x, 0.4 + pos.y, pos.z);
+    this.playerMesh.rotation.y = yaw;
 
-    car.mesh.position.set(x, 0.4 + y, z);
-    car.mesh.rotation.y = h;
+    // 状態で色を変える（ブースト＝赤、ブレーキ＝灰色、壁＝白っぽく点滅）
+    let color = this.playerBaseColor;
+    if (p.boostTime > 0) color = 0xff5533;
+    if (p.input.brake) color = 0x888888;
+    if (p.wallHit) color = 0xffffff;
+    this.playerMesh.material.color.setHex(color);
 
-    // 状態で色を変える（ドリフト＝水色、ブースト＝赤、ブレーキ＝灰色）
-    let color = 0xffb347;
-    if (car.drifting) color = 0x66ccff;
-    if (car.boostTime > 0) color = 0xff5533;
-    if (car.braking) color = 0x888888;
-    car.mesh.material.color.setHex(color);
-
-    // 車の後ろ上からカメラで追いかける
-    this.camera.position.set(x - fx * c.distance, c.height + y, z - fz * c.distance);
-    this.tmpLook.set(x + fx * c.lookAhead, c.lookHeight + y, z + fz * c.lookAhead);
+    // 車の向きの真後ろからカメラで追いかける
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    this.camera.position.set(pos.x - fx * c.distance, c.height + pos.y, pos.z - fz * c.distance);
+    this.tmpLook.set(pos.x + fx * c.lookAhead, c.lookHeight + pos.y, pos.z + fz * c.lookAhead);
     this.camera.lookAt(this.tmpLook);
   }
-}
-
-function clamp(v, min, max) {
-  return v < min ? min : (v > max ? max : v);
 }
 
 // 数値を符号付き小数2桁の文字にする
