@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.6.1（Phase6 Step6-1）
+  バージョン : 0.6.2（Phase6 Step6-2）
 */
 
 import { CONFIG } from '../config.js';
@@ -15,6 +15,7 @@ import { AIController } from '../ai/AIController.js';
 import { resolveCollisions } from './Collision.js';
 import { RaceManager } from './RaceManager.js';
 import { HUD } from '../ui/HUD.js';
+import { Rings } from '../world/Rings.js';
 
 export class RaceSession {
   /**
@@ -55,6 +56,14 @@ export class RaceSession {
     this.resultsWait = 0;
 
     this.createRacers(o.playerCharIndex || 0);
+
+    // 空中のリング（ゲージは最初は空で、リングで溜める）
+    this.rings = new Rings(this.scene, this.track, this.track.data.rings);
+    for (const r of this.racers) {
+      r.gauge = CONFIG.rings.startGauge;
+    }
+    this.airHintShown = false;
+    this.playerRings = 0;
 
     this.race = new RaceManager(this.racers, this.track);
     this.hud = new HUD(document.body);
@@ -168,6 +177,17 @@ export class RaceSession {
       const wasBumped = player.bumped;
       resolveCollisions(this.racers, this.track);
       if (player.bumped && !wasBumped) this.playerBumps += 1;
+
+      // リングを通り抜けたか
+      for (const racer of this.racers) {
+        this.rings.check(racer, (ring) => this.onRing(racer, ring));
+      }
+
+      // 初めて空中に入ったときに、上下操作の案内を出す
+      if (!this.airHintShown && this.track.zoneAt(player.s) === 'air') {
+        this.airHintShown = true;
+        this.hud.showBanner('↕ 上下で上昇・下降！リングを通ろう', 2.5, 'hint');
+      }
     }
 
     // スタートダッシュの判定（カウントダウン中にブーストを押したか）
@@ -197,6 +217,22 @@ export class RaceSession {
       this.audio.play('boost');
     }
     this.lastBoostTime = player.boostTime;
+  }
+
+  // リングを通り抜けたとき
+  onRing(racer, ring) {
+    const c = CONFIG.rings;
+    if (ring.type === 'gauge') {
+      racer.gauge = Math.min(1, racer.gauge + c.gaugeAmount);
+      if (racer.isPlayer) {
+        this.audio.play('ring');
+        this.playerRings += 1;
+      }
+    } else if (ring.type === 'boost') {
+      racer.startBoost(c.boostTime);
+      if (racer.isPlayer) this.playerRings += 1;
+      // ブースト音は、ブースト開始を見張っている update で鳴る
+    }
   }
 
   // 結果表を出す（ゴールしていない人は「記録なし」で、走った距離の順）
@@ -249,6 +285,7 @@ export class RaceSession {
       this.updateSprite(racer, this.sprites[i], frameTime);
     }
     this.audio.setEngine(paused ? 0 : player.getSpeedRatio());
+    this.rings.update(frameTime);
 
     // 順位・周回・タイム・ゲージ・カウントダウン
     const race = this.race;
@@ -299,7 +336,8 @@ export class RaceSession {
         AREA_NAMES[t.areaAt(p.s)] + (t.zoneAt(p.s) === 'air' ? '（空中）' : ''),
       'ゲージ ' + Math.round(p.gauge * 100) + '%  ブースト残 ' + p.boostTime.toFixed(1) +
         (p.wallHit ? '  壁' : '') + '  状態 ' + p.state + '  落下 ' + p.fallCount + '回',
-      'レース ' + this.race.phase + '  CPUの落下 ' + cpuFalls + '回  自分の接触 ' + this.playerBumps + '回'
+      'レース ' + this.race.phase + '  CPUの落下 ' + cpuFalls + '回  自分の接触 ' + this.playerBumps + '回' +
+        '  リング ' + this.playerRings + '個'
     ];
   }
 
@@ -310,6 +348,7 @@ export class RaceSession {
       sprite.geometry.dispose();
     }
     this.hud.dispose();
+    this.rings.dispose();
   }
 }
 
