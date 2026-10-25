@@ -3,13 +3,14 @@
   保存場所   : /js/ai
   役割       : CPUの思考。プレイヤーと同じ「入力状態」（旋回・上下・ドリフト・ブースト）を
                作るだけで、動きはプレイヤーと同じ物理（Racer）で行う（ズルをしない）
-  バージョン : 0.4.1（Phase4 Step4-1）
+  バージョン : 0.6.1（Phase6 Step6-1）
 
   考え方
     ・少し先のコースの曲がり具合を見て、カーブの内側寄りの走行ラインを決める
     ・CPUごとに「好きな走行位置（左寄り・右寄り）」と「腕前」を持たせ、団子状態を防ぐ
     ・ゲージが満タンで、先がまっすぐなときにブーストを使う
     ・柵のない所では端に寄りすぎない（落ちにくくする）
+    ・空中では、CPUごとに好きな高さを保つ（リングを狙う動きはStep6-3）
 */
 
 import { CONFIG } from '../config.js';
@@ -25,6 +26,7 @@ export class AIController {
     this.track = track;
     this.lineOffset = personality.lineOffset;
     this.skill = personality.skill;
+    this.heightBias = personality.heightBias || 0;   // 空中で好きな高さ（メートル）
     this.time = personality.seed || 0;   // ふらつきの位相をCPUごとにずらす
     this.boostWait = 0;                  // ブーストを使うまでの迷い時間
     this.input = { steer: 0, pitch: 0, drift: false, boost: false, brake: false };
@@ -39,7 +41,7 @@ export class AIController {
     this.time += dt;
 
     input.boost = false;
-    input.pitch = 0;
+    input.pitch = this.thinkHeight();
     input.drift = false;
     input.brake = false;
 
@@ -86,6 +88,15 @@ export class AIController {
     }
 
     return input;
+  }
+
+  // 空中で好きな高さに近づける上下の入力（地上では 0）
+  thinkHeight() {
+    const r = this.racer;
+    if (this.track.zoneAt(r.s) !== 'air') return 0;
+    const a = CONFIG.ai;
+    const error = this.heightBias - r.y;
+    return clamp(error * a.pitchToHeight - r.vy * a.pitchDamping, -1, 1);
   }
 }
 
