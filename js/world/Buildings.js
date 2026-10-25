@@ -6,7 +6,10 @@
                                       崩れたアーチは柱の上が欠け、まわりに石のかけらが浮かぶ
                  ・神殿の柱         … 土台・溝の入った丸い柱・柱頭
                  ・ゴールの門       … 溝の入った2本の柱、梁、上に三角の飾り（破風）
-  バージョン : 0.8.6（Phase8 Step8-6）
+  バージョン : 0.8.7（Phase8 Step8-7）
+  メモ       : 本殿・かがり火・旗・ツタなどは Landmarks.js が作る。
+               そのために、形をためる入れ物（ShapeBuilder）と石の素材（stoneMaterials）を外から使えるようにし、
+               旗とツタを付ける場所（anchors）を記録して返す
 
   軽くするための工夫
     ・石の模様は、プログラムで小さな画像（32×32）を3枚描くだけ（画像ファイル不要）
@@ -22,38 +25,58 @@ const TEX = 32;   // 模様の画像の大きさ（マス）
 /**
  * 遺跡・神殿の建物をすべて作る
  * @param {Track} track
- * @returns {THREE.Group}
+ * @returns {{ group: THREE.Group, anchors: { vines: Array, banners: Array } }}
+ *          anchors = ツタ・旗を付ける場所（Landmarks.js が使う）
  */
 export function buildBuildings(track) {
-  const e = CONFIG.environment;
-  const b = CONFIG.buildings;
   const group = new THREE.Group();
+  const anchors = { vines: [], banners: [] };
+  const builders = createBuilders();
 
-  // 模様ごとに1つずつ、形をためる入れ物
-  const ruin = new ShapeBuilder(b.ruinTile);
-  const flute = new ShapeBuilder(b.marbleTile);
-  const block = new ShapeBuilder(b.marbleTile * 2);
+  buildArches(track, builders.ruin, anchors);
+  buildTempleColumns(track, builders.flute, builders.block, anchors);
+  buildGate(track, builders.flute, builders.block);
 
-  buildArches(track, ruin);
-  buildTempleColumns(track, flute, block);
-  buildGate(track, flute, block);
+  addMeshes(group, builders);
+  return { group, anchors };
+}
 
-  const random = seededRandom(99);
-  const materials = [
-    [ruin, drawRuinStone(e.ruinColor, random)],
-    [flute, drawFlutedMarble(e.templeColor, random)],
-    [block, drawMarbleBlocks(e.templeColor, random)]
-  ];
-  for (const [builder, texture] of materials) {
-    if (builder.isEmpty()) continue;
-    const material = new THREE.MeshLambertMaterial({ map: texture, vertexColors: true });
-    group.add(new THREE.Mesh(builder.build(), material));
+// 模様ごとに1つずつ、形をためる入れ物を作る
+export function createBuilders() {
+  const b = CONFIG.buildings;
+  return {
+    ruin: new ShapeBuilder(b.ruinTile),
+    flute: new ShapeBuilder(b.marbleTile),
+    block: new ShapeBuilder(b.marbleTile * 2)
+  };
+}
+
+// ためた形を、石の素材を付けて group に加える（空の入れ物は飛ばす）
+export function addMeshes(group, builders) {
+  const m = stoneMaterials();
+  for (const name of ['ruin', 'flute', 'block']) {
+    if (builders[name].isEmpty()) continue;
+    group.add(new THREE.Mesh(builders[name].build(), m[name]));
   }
-  return group;
+}
+
+// 石の素材（遺跡の石・溝の柱・切り石）。一度だけ作って使い回す
+let cachedMaterials = null;
+export function stoneMaterials() {
+  if (cachedMaterials) return cachedMaterials;
+  const e = CONFIG.environment;
+  const random = seededRandom(99);
+  const make = (texture) => new THREE.MeshLambertMaterial({ map: texture, vertexColors: true });
+  cachedMaterials = {
+    ruin: make(drawRuinStone(e.ruinColor, random)),
+    flute: make(drawFlutedMarble(e.templeColor, random)),
+    block: make(drawMarbleBlocks(e.templeColor, random))
+  };
+  return cachedMaterials;
 }
 
 // ---- 古代遺跡のアーチ（空中ルートをまたぐ。3つに1つは崩れている） ----
-function buildArches(track, ruin) {
+function buildArches(track, ruin, anchors) {
   const e = CONFIG.environment;
   const b = CONFIG.buildings;
   const random = seededRandom(31);
@@ -97,6 +120,11 @@ function buildArches(track, ruin) {
         // 柱頭（上の飾り）
         at(side * half, top - 0.5);
         ruin.box(p.x, p.y, p.z, 4.0, 1.0, 4.0, yaw, 1.05);
+        // ツタ：飛んでくる人から見える面（手前側）に垂らす
+        for (const ox of [-0.8, 0.7]) {
+          track.toWorld(s - 1.58, side * half + ox, top - 1.0, p);
+          anchors.vines.push({ x: p.x, y: p.y, z: p.z, yaw, length: 5 + random() * 7 });
+        }
       }
     }
 
@@ -108,13 +136,19 @@ function buildArches(track, ruin) {
       ruin.box(p.x, p.y, p.z, half * 2 + 2, 0.8, 3.0, yaw, 1.08);
       track.toWorld(s, 0, top + 3.4, p);
       ruin.box(p.x, p.y, p.z, 2.0, 1.6, 3.6, yaw, 1.12);
+      // 梁から垂れるツタ（道の真ん中は避け、左右寄りに）
+      for (let k = 0; k < 4; k += 1) {
+        const x = (k < 2 ? -1 : 1) * (half * (0.45 + random() * 0.45));
+        track.toWorld(s - 1.75, x, top, p);
+        anchors.vines.push({ x: p.x, y: p.y, z: p.z, yaw, length: 2 + random() * 3 });
+      }
     }
     n += 1;
   }
 }
 
 // ---- 神殿の柱（神殿の道の両側に並ぶ白い柱） ----
-function buildTempleColumns(track, flute, block) {
+function buildTempleColumns(track, flute, block, anchors) {
   const e = CONFIG.environment;
   const b = CONFIG.buildings;
   const p = { x: 0, y: 0, z: 0 };
@@ -137,6 +171,11 @@ function buildTempleColumns(track, flute, block) {
       // 柱頭
       block.box(p.x, p.y + h - 0.85, p.z, 2.0, 0.3, 2.0, yaw, 1.05);
       block.box(p.x, p.y + h - 0.35, p.z, 2.5, 0.7, 2.5, yaw, 1.1);
+      // 1本おきに、道の側へ旗を下げる
+      if (Math.floor(i / every) % 2 === 0) {
+        track.toWorld(i * track.step, side * (track.width[i] / 2 + b.columnOffset - 0.95), h - 1.2, p);
+        anchors.banners.push({ x: p.x, y: p.y, z: p.z, yaw: yaw + side * Math.PI / 2 });
+      }
     }
   }
 }
@@ -169,7 +208,7 @@ function buildGate(track, flute, block) {
 // ============================================================
 // 形をためる入れ物。箱・円柱・三角柱を足していき、最後に1つの形にする
 // ============================================================
-class ShapeBuilder {
+export class ShapeBuilder {
   constructor(tile) {
     this.tile = tile;          // 模様を何メートルごとにくり返すか
     this.positions = [];
