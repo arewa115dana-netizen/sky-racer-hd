@@ -3,7 +3,7 @@
   保存場所   : /js/world
   役割       : 天空神殿コースの形（データのみ）。
                制御点を順番になめらかにつなぐと1周のコースになる
-  バージョン : 0.3.1（Phase3 Step3-1）
+  バージョン : 0.6.2（Phase6 Step6-2）
 
   制御点の項目
     x, z  : 上から見た位置（メートル）
@@ -13,6 +13,11 @@
     yMin, yMax : 空中区間で、中心から上下に動ける範囲（Phase6で使用）
     area  : 区間の名前（見た目の作り分けとデバッグ表示に使う）
     edge  : 地上区間の道の端。'wall' = 柵あり（押し戻される）、'open' = 柵なし（Step3-3から落ちる）
+
+  リング（rings）の項目（詳しくは Rings.js）
+    area : 区間の名前、at : 区間の空中部分のどのあたりか（0〜1）
+    x, y : 中心線から右へ・上へのずれ（メートル）
+    type : 'gauge'（青：ゲージが溜まる） または 'boost'（金：その場でブースト）
 */
 
 export const SKY_TEMPLE = {
@@ -46,5 +51,24 @@ export const SKY_TEMPLE = {
     { x: 45,   y: 4,  z: -90,  width: 18, zone: 'ground', edge: 'wall', area: 'temple' },
     { x: 12,   y: 3,  z: -65,  width: 18, zone: 'ground', edge: 'wall', area: 'temple' },
     { x: 0,    y: 1,  z: -32,  width: 18, zone: 'ground', edge: 'wall', area: 'temple' }
+  ],
+
+  rings: [
+    // 雲海：高いルート（左寄り）と低いルート（右寄り）に青いリングを4組。どちらかを続けて取れば満タン
+    { area: 'cloud', at: 0.15, x: -5, y: 7,  type: 'gauge' },
+    { area: 'cloud', at: 0.15, x: 5,  y: -4, type: 'gauge' },
+    { area: 'cloud', at: 0.35, x: -6, y: 8,  type: 'gauge' },
+    { area: 'cloud', at: 0.35, x: 6,  y: -5, type: 'gauge' },
+    { area: 'cloud', at: 0.55, x: -4, y: 9,  type: 'gauge' },
+    { area: 'cloud', at: 0.55, x: 4,  y: -6, type: 'gauge' },
+    { area: 'cloud', at: 0.75, x: -5, y: 7,  type: 'gauge' },
+    { area: 'cloud', at: 0.75, x: 5,  y: -4, type: 'gauge' },
+    // 古代遺跡：アーチの上側（狭い・高い）に金のリング、下側（広い）に青のリング
+    { area: 'ruins', at: 0.25, x: 0,  y: 7,  type: 'boost' },
+    { area: 'ruins', at: 0.25, x: -6, y: -6, type: 'gauge' },
+    { area: 'ruins', at: 0.5,  x: 0,  y: 7,  type: 'boost' },
+    { area: 'ruins', at: 0.5,  x: 6,  y: -6, type: 'gauge' },
+    { area: 'ruins', at: 0.75, x: 0,  y: 7,  type: 'boost' },
+    { area: 'ruins', at: 0.75, x: -6, y: -6, type: 'gauge' }
   ]
 };
