@@ -3,7 +3,7 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.7.2（Phase7 Step7-2）
+  バージョン : 0.9.1b（Phase9 Step9-1 修正）
   メモ       : エンジン音・ブースト音・リング音・ドリフト音・ミニターボ音。
                BGMと他の効果音はPhase10で追加する
 */
@@ -39,15 +39,22 @@ export class AudioManager {
   }
 
   // 音を使えるようにする（タッチやキー操作の中で呼ぶ必要がある）
+  // Android の Chrome は「指を離した瞬間」でないと操作と認めないため、
+  // 指を置いたときに作った音の仕組みは一時停止のままになることがある。
+  // そこで、何度呼ばれても「まだ鳴っていなければ再開」をかけ直す
   unlock() {
-    if (this.unlocked) return;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-
-    this.ctx = new AudioCtx();
-    this.master = this.ctx.createGain();
-    this.master.gain.value = CONFIG.audio.masterVolume;
-    this.master.connect(this.ctx.destination);
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = CONFIG.audio.masterVolume;
+      this.master.connect(this.ctx.destination);
+      this.startEngine();
+      this.startDrift();
+      this.unlocked = true;
+    }
+    if (this.isRunning() || this.paused) return;
 
     // iPhone向け：操作の直後に無音を1回鳴らすと、以降の音が出せるようになる
     const silent = this.ctx.createBuffer(1, 1, 22050);
@@ -55,13 +62,12 @@ export class AudioManager {
     src.buffer = silent;
     src.connect(this.master);
     src.start(0);
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
+    this.ctx.resume();
+  }
 
-    this.startEngine();
-    this.startDrift();
-    this.unlocked = true;
+  // 本当に音が鳴る状態か
+  isRunning() {
+    return !!this.ctx && this.ctx.state === 'running';
   }
 
   // 全体の音量（0〜1）
