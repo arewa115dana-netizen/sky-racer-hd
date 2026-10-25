@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.5.1（Phase5 Step5-1）
+  バージョン : 0.5.2（Phase5 Step5-2）
 */
 
 import { CONFIG } from '../config.js';
@@ -27,6 +27,7 @@ export class RaceSession {
    * @param {AudioManager} o.audio
    * @param {Debug} o.debug
    * @param {number} o.playerCharIndex プレイヤーのキャラクター番号（0〜5）
+   * @param {function} o.onRetry 結果表の「もう一度」が押されたときに呼ぶ関数
    */
   constructor(o) {
     this.scene = o.scene;
@@ -36,6 +37,7 @@ export class RaceSession {
     this.cameraRig = o.cameraRig;
     this.audio = o.audio;
     this.debug = o.debug;
+    this.onRetry = o.onRetry || null;
 
     this.racers = [];    // 全レーサー（プレイヤーを含む6人）
     this.sprites = [];   // racers と同じ順番の見た目
@@ -46,11 +48,18 @@ export class RaceSession {
     this.lastBoostTime = 0;
     this.hudView = { rank: 0, total: 0, lap: 1, laps: 3, time: 0, gauge: 0, countdown: null };
 
+    // スタートダッシュ：'none'（まだ）/ 'ready'（成功の予定）/ 'early'（押すのが早すぎ）
+    this.dashState = 'none';
+    // 結果表
+    this.resultsShown = false;
+    this.resultsWait = 0;
+
     this.createRacers(o.playerCharIndex || 0);
 
     this.race = new RaceManager(this.racers, this.track);
     this.hud = new HUD(document.body);
     this.setupRaceEvents();
+    this.hud.showBanner('GO直前にブーストでスタートダッシュ！', 2.2, 'hint');
 
     // カメラをプレイヤーの真後ろに合わせる
     this.player.computeRenderPose(1);
@@ -97,7 +106,26 @@ export class RaceSession {
   setupRaceEvents() {
     const race = this.race;
     race.on('go', () => {
-      this.hud.showBanner('GO!', 1.0, 'go');
+      const r = CONFIG.race;
+      if (this.dashState === 'ready') {
+        this.player.startBoost(r.startDashTime);
+        this.hud.showBanner('ダッシュ！', 1.0, 'go');
+      } else {
+        this.hud.showBanner('GO!', 1.0, 'go');
+      }
+      if (this.dashState === 'early') {
+        this.debug.log('スタートダッシュ失敗（早すぎ）');
+      }
+      // CPUは腕前に応じた確率でスタートダッシュ（毎回同じ結果にならないよう時刻で変える）
+      const salt = (Date.now() % 997) / 997;
+      for (let i = 0; i < this.racers.length; i += 1) {
+        const ai = this.ais[i];
+        if (!ai) continue;
+        const roll = (Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453) % 1;
+        if (Math.abs(roll) < ai.skill * r.cpuDashChance) {
+          this.racers[i].startBoost(r.startDashTime * 0.8);
+        }
+      }
     });
     race.on('lap', (racer, lap) => {
       if (racer.isPlayer && lap < race.laps) {
@@ -142,8 +170,23 @@ export class RaceSession {
       if (player.bumped && !wasBumped) this.playerBumps += 1;
     }
 
+    // スタートダッシュの判定（カウントダウン中にブーストを押したか）
+    if (this.race.phase === 'countdown' && input.boost && this.dashState !== 'early') {
+      this.dashState = this.race.countdown <= CONFIG.race.startDashWindow ? 'ready' : 'early';
+    }
+
     // 周回・順位・ゴールの判定
     this.race.step(dt);
+
+    // 自分がゴールしたら、少し待ってから結果表を出す
+    if (this.race.phase === 'finished' && !this.resultsShown) {
+      this.resultsWait += dt;
+      const r = CONFIG.race;
+      const allDone = this.race.finishOrder.length === this.racers.length;
+      if (this.resultsWait >= r.resultMinWait && (allDone || this.resultsWait >= r.resultMaxWait)) {
+        this.showResults();
+      }
+    }
 
     if (!wasRespawning && player.state === 'respawn') {
       this.debug.log('コースアウト！');
@@ -154,6 +197,22 @@ export class RaceSession {
       this.audio.play('boost');
     }
     this.lastBoostTime = player.boostTime;
+  }
+
+  // 結果表を出す（ゴールしていない人は「記録なし」で、走った距離の順）
+  showResults() {
+    this.resultsShown = true;
+    const ranking = this.race.getRanking();
+    const rows = ranking.map((racer, i) => ({
+      rank: i + 1,
+      name: racer.character.name,
+      time: this.race.finishTimeOf(racer),
+      isPlayer: racer.isPlayer
+    }));
+    this.hud.hideBanner();
+    this.hud.showResults(rows, () => {
+      if (this.onRetry) this.onRetry();
+    });
   }
 
   // CPUの追い上げ補正：前にいるCPUは少し遅く、後ろにいるCPUは少し速く
