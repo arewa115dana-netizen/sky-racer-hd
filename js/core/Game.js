@@ -3,10 +3,11 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.8.3（Phase8 Step8-3）
+  バージョン : 0.8.4（Phase8 Step8-4）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                タイトル・キャラ選択などの画面はPhase9で追加する
-               PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
+               PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え、
+               F で仕上げ処理（ティルトシフト・ブルーム・色づくり）の ON / OFF
 */
 
 import * as THREE from 'three';
@@ -24,6 +25,7 @@ import { CHARACTERS } from '../entities/Characters.js';
 import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
 import { Atmosphere } from '../render/Atmosphere.js';
+import { PostFX } from '../render/PostFX.js';
 import { RaceSession } from '../systems/RaceSession.js';
 
 export class Game {
@@ -44,6 +46,7 @@ export class Game {
     this.track = null;
     this.environment = null;
     this.atmosphere = null;    // 光の筋・光る粒・周辺減光
+    this.postfx = null;        // 画面全体の仕上げ（ティルトシフト・ブルーム・色づくり）
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
     this.playerCharIndex = 0;  // プレイヤーのキャラクター番号
@@ -65,6 +68,7 @@ export class Game {
 
     this.setupRenderer();
     this.quality = new Quality(this.renderer);
+    this.postfx = new PostFX(this.renderer, this.quality);
     this.audio = new AudioManager();
     this.setupScene();
 
@@ -153,6 +157,8 @@ export class Game {
     });
     // 描画解像度は Quality が決める
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // 描画回数などの数え方：仕上げ処理で何回も描くので、1フレーム分をまとめて数える
+    this.renderer.info.autoReset = false;
     this.container.appendChild(this.renderer.domElement);
   }
 
@@ -200,6 +206,10 @@ export class Game {
       if (e.code === 'KeyP' && !e.repeat) {
         this.togglePowerSave();
       }
+      if (e.code === 'KeyF' && !e.repeat) {
+        this.postfx.toggle();
+        this.debug.log(this.postfx.describe());
+      }
       if (e.code.startsWith('Digit') && this.session) {
         const n = Number(e.code.slice(5));
         if (n >= 1 && n <= CHARACTERS.length) {
@@ -241,8 +251,12 @@ export class Game {
 
     // 画質の自動調整と、省電力モードでの描画の間引き
     this.quality.sample(frameTime);
+    const wasOn = this.postfx.enabled;
+    this.postfx.watch(frameTime);
+    if (wasOn && !this.postfx.enabled) this.debug.log(this.postfx.describe());
     if (this.quality.shouldRender(frameTime)) {
-      this.renderer.render(this.scene, this.camera);
+      this.renderer.info.reset();
+      this.postfx.render(this.scene, this.camera);
       this.drawnFrames += 1;
     }
     this.drawnTime += frameTime;
@@ -258,6 +272,7 @@ export class Game {
     const lines = willRefresh && this.session ? this.session.describe(this.lastInput) : [];
     if (willRefresh) {
       lines.push(this.quality.describe() + '  音 ' + (this.audio.unlocked ? 'ON' : '未'));
+      lines.push(this.postfx.describe());
     }
     this.debug.update(frameTime, {
       state: this.loop.paused ? '一時停止中' : this.state,
