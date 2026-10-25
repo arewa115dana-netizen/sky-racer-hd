@@ -3,10 +3,9 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.2.5（Phase2 Step2-5）
-  メモ       : 試走用オーバルコースを本番の物理で走り、専用カメラで追いかける。
-               ドット絵はStep2-6で追加する
-               PCでは数字キー 1〜6 でキャラクターを切り替えられる（能力の確認用）
+  バージョン : 0.2.6（Phase2 Step2-6）
+  メモ       : 試走用オーバルコースを、ドット絵のキャラクターで走る。
+               PCでは数字キー 1〜6 でキャラクターを切り替えられる（能力と色の確認用）
 */
 
 import * as THREE from 'three';
@@ -16,7 +15,9 @@ import { Input } from './Input.js';
 import { Debug } from './Debug.js';
 import { TestTrack } from '../world/TestTrack.js';
 import { Racer } from '../entities/Racer.js';
+import { RacerSprite } from '../entities/RacerSprite.js';
 import { CHARACTERS } from '../entities/Characters.js';
+import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
 
 export class Game {
@@ -35,8 +36,9 @@ export class Game {
     this.pixelRatio = 1;
 
     this.track = null;
+    this.atlas = null;
     this.player = null;
-    this.playerMesh = null;
+    this.playerSprite = null;
 
     this.versionEl = document.getElementById('version');
     this.debugLines = ['', '', '', ''];
@@ -55,6 +57,9 @@ export class Game {
     this.track = new TestTrack();
     this.scene.add(this.track.buildMesh());
 
+    // 全キャラクターのドット絵を1枚の画像にまとめて作る
+    this.atlas = buildAtlas(CHARACTERS);
+
     this.player = new Racer({
       id: 0,
       character: CHARACTERS[0],
@@ -62,7 +67,9 @@ export class Game {
       isPlayer: true
     });
     this.player.placeAt(0, 0);
-    this.buildPlayerMesh();
+
+    this.playerSprite = new RacerSprite(this.atlas, CHARACTERS[0].id);
+    this.scene.add(this.playerSprite.object3d);
 
     this.cameraRig = new CameraRig(this.camera);
     this.player.computeRenderPose(1);
@@ -98,12 +105,12 @@ export class Game {
     this.debug.log(this.loop.paused ? '一時停止' : '再開');
   }
 
-  // キャラクターの切り替え（能力の確認用）
+  // キャラクターの切り替え（能力と色の確認用）
   selectCharacter(index) {
     const ch = CHARACTERS[index];
     if (!ch || !this.player) return;
     this.player.setCharacter(ch);
-    this.playerBaseColor = ch.palette.main;
+    this.playerSprite.setCharacter(ch.id);
     this.debug.log(ch.name + '（' + ch.type + '）');
   }
 
@@ -202,17 +209,6 @@ export class Game {
     this.scene.add(pillars);
   }
 
-  // ---- プレイヤーの見た目（仮の箱。Step2-6でドット絵に置き換える） ----
-  buildPlayerMesh() {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.8, 2),
-      new THREE.MeshLambertMaterial({ color: 0xffffff })
-    );
-    this.scene.add(mesh);
-    this.playerMesh = mesh;
-    this.playerBaseColor = this.player.character.palette.main;
-  }
-
   // ---- 画面の変化・キー操作への対応 ----
   setupEvents() {
     window.addEventListener('resize', () => this.onResize());
@@ -220,7 +216,7 @@ export class Game {
       setTimeout(() => this.onResize(), 200);
     });
 
-    // 数字キー 1〜6 でキャラクター切り替え（PCでの能力確認用）
+    // 数字キー 1〜6 でキャラクター切り替え（PCでの確認用）
     window.addEventListener('keydown', (e) => {
       if (e.code.startsWith('Digit')) {
         const n = Number(e.code.slice(5));
@@ -265,8 +261,10 @@ export class Game {
   // ---- 描画（毎フレーム） ----
   render(alpha, frameTime) {
     if (this.state === 'TEST') {
-      this.renderPlayer(alpha);
+      // 順番が大事：位置を決める → カメラを動かす → 絵をカメラへ向ける
+      this.player.computeRenderPose(alpha);
       this.cameraRig.follow(this.player, this.track, frameTime);
+      this.playerSprite.update(this.player, this.camera, frameTime);
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -277,24 +275,6 @@ export class Game {
       pixelRatio: this.pixelRatio,
       lines: this.debugLines
     });
-  }
-
-  // プレイヤーの見た目の位置と色を決める
-  renderPlayer(alpha) {
-    const p = this.player;
-    p.computeRenderPose(alpha);
-    const pos = p.renderPos;
-    const yaw = p.renderYaw;
-
-    this.playerMesh.position.set(pos.x, 0.4 + pos.y, pos.z);
-    this.playerMesh.rotation.y = yaw;
-
-    // 状態で色を変える（ブースト＝赤、ブレーキ＝灰色、壁＝白っぽく点滅）
-    let color = this.playerBaseColor;
-    if (p.boostTime > 0) color = 0xff5533;
-    if (p.input.brake) color = 0x888888;
-    if (p.wallHit) color = 0xffffff;
-    this.playerMesh.material.color.setHex(color);
   }
 }
 
