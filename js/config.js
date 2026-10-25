@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.6.2（Phase6 Step6-2）
+  バージョン : 0.6.3（Phase6 Step6-3）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.6.2',
+  VERSION: '0.6.3',
 
   // ゲームループ
   loop: {
@@ -141,13 +141,15 @@ export const CONFIG = {
   // 空中のリング（Rings が使う）
   rings: {
     radius: 3.0,         // リングの大きさ（半径・メートル）
-    tube: 0.35,          // リングの太さ
+    tube: 0.6,           // リングの太さ（Step6-3で0.35から太く）
+    glowTube: 1.3,       // 光のにじみの太さ
+    glowOpacity: 0.35,   // 光のにじみの濃さ
     hitSize: 3.0,        // 中心から上下左右にこの距離以内を通れば取れる（メートル）
     gaugeAmount: 0.25,   // 青いリング1つで溜まるゲージ（満タン = 1）
     boostTime: 1.0,      // 金のリングのブースト時間（秒）
     startGauge: 0,       // レース開始時のゲージ
-    gaugeColor: 0x5fd4ff,// 青いリングの色
-    boostColor: 0xffcf4a // 金のリングの色
+    gaugeColor: 0x1f7bff,// 青いリングの色（空に溶けないよう濃い青に）
+    boostColor: 0xffb000 // 金のリングの色（濃い金に）
   },
 
   // レーサー同士の押し合い（Collision が使う）
@@ -184,6 +186,8 @@ export const CONFIG = {
     boostDelay: 0.8,     // ブーストを使えるようになってから使うまでの迷い（秒）
     pitchToHeight: 0.35, // 空中で好きな高さへ戻ろうとする強さ
     pitchDamping: 0.12,  // 上下の動きを落ち着かせる強さ
+    ringLookAhead: 70,   // 何メートル先までのリングを狙うか
+    ringAimChance: 0.85, // リングを狙う確率（腕前を掛ける）
     // CPU5人の性格（lineOffset: 好きな走行位置 -1=左〜1=右、skill: 腕前 0〜1）
     personalities: [
       { lineOffset: -0.6, skill: 0.92, heightBias: 3 },
