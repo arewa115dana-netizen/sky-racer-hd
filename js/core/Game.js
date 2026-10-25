@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.9.1（Phase9 Step9-1）
+  バージョン : 0.9.1b（Phase9 Step9-1 修正）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ：タイトル（Title.js）→ レース。キャラ選択・設定は Phase9 の続きで追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え、
@@ -130,6 +130,8 @@ export class Game {
   // タイトルでタップされた
   onTitleStart() {
     this.title = null;
+    // タップ（指を離した瞬間）の中で、もう一度確実に音を再開する
+    this.audio.unlock();
     document.body.classList.remove('in-menu');
     this.debug.setVisible(CONFIG.debug.show);
     this.startRace(this.playerCharIndex);
@@ -232,17 +234,18 @@ export class Game {
       setTimeout(() => this.onResize(), 200);
     });
 
-    // 最初のタッチ・キー操作で音を使えるようにする（iPhone対策）
+    // タッチ・キー操作のたびに、音が鳴る状態になるまで「再開」をかける。
+    // Android の Chrome は指を離したとき（pointerup / touchend / click）しか操作と認めないので、
+    // それらでも呼ぶ。本当に鳴り始めたら見張りをやめる
+    const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
     const unlockAudio = () => {
       this.audio.unlock();
-      if (this.audio.unlocked) {
-        window.removeEventListener('pointerdown', unlockAudio, true);
-        window.removeEventListener('keydown', unlockAudio, true);
+      if (this.audio.isRunning()) {
+        for (const name of events) window.removeEventListener(name, unlockAudio, true);
         this.debug.log('サウンド有効');
       }
     };
-    window.addEventListener('pointerdown', unlockAudio, true);
-    window.addEventListener('keydown', unlockAudio, true);
+    for (const name of events) window.addEventListener(name, unlockAudio, true);
 
     // 数字キー 1〜6 でキャラクター切り替え、P で省電力モード（PCでの確認用）
     window.addEventListener('keydown', (e) => {
@@ -316,7 +319,7 @@ export class Game {
       this.debug.timer + frameTime >= CONFIG.debug.interval;
     const lines = willRefresh && this.session ? this.session.describe(this.lastInput) : [];
     if (willRefresh) {
-      lines.push(this.quality.describe() + '  音 ' + (this.audio.unlocked ? 'ON' : '未'));
+      lines.push(this.quality.describe() + '  音 ' + (this.audio.isRunning() ? 'ON' : (this.audio.unlocked ? '停止中' : '未')));
       lines.push(this.postfx.describe());
     }
     this.debug.update(frameTime, {
