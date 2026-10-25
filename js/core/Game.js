@@ -3,9 +3,9 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.2.4（Phase2 Step2-4）
-  メモ       : このステップでは試走用オーバルコースを本番の物理で走る。
-               追従カメラはStep2-5、ドット絵はStep2-6で追加する
+  バージョン : 0.2.5（Phase2 Step2-5）
+  メモ       : 試走用オーバルコースを本番の物理で走り、専用カメラで追いかける。
+               ドット絵はStep2-6で追加する
                PCでは数字キー 1〜6 でキャラクターを切り替えられる（能力の確認用）
 */
 
@@ -17,6 +17,7 @@ import { Debug } from './Debug.js';
 import { TestTrack } from '../world/TestTrack.js';
 import { Racer } from '../entities/Racer.js';
 import { CHARACTERS } from '../entities/Characters.js';
+import { CameraRig } from '../render/CameraRig.js';
 
 export class Game {
   constructor(container) {
@@ -27,6 +28,7 @@ export class Game {
     this.renderer = null;
     this.scene = null;
     this.camera = null;
+    this.cameraRig = null;
     this.loop = null;
     this.input = null;
     this.debug = null;
@@ -37,9 +39,6 @@ export class Game {
     this.playerMesh = null;
 
     this.versionEl = document.getElementById('version');
-
-    // 毎フレーム使い回す計算用の入れ物（毎回作らない）
-    this.tmpLook = new THREE.Vector3();
     this.debugLines = ['', '', '', ''];
   }
 
@@ -64,6 +63,10 @@ export class Game {
     });
     this.player.placeAt(0, 0);
     this.buildPlayerMesh();
+
+    this.cameraRig = new CameraRig(this.camera);
+    this.player.computeRenderPose(1);
+    this.cameraRig.snap(this.player);
 
     this.setupEvents();
 
@@ -263,6 +266,7 @@ export class Game {
   render(alpha, frameTime) {
     if (this.state === 'TEST') {
       this.renderPlayer(alpha);
+      this.cameraRig.follow(this.player, this.track, frameTime);
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -275,9 +279,8 @@ export class Game {
     });
   }
 
-  // プレイヤーとカメラの位置を決める（カメラはStep2-5で専用の部品にする）
+  // プレイヤーの見た目の位置と色を決める
   renderPlayer(alpha) {
-    const c = CONFIG.camera;
     const p = this.player;
     p.computeRenderPose(alpha);
     const pos = p.renderPos;
@@ -292,13 +295,6 @@ export class Game {
     if (p.input.brake) color = 0x888888;
     if (p.wallHit) color = 0xffffff;
     this.playerMesh.material.color.setHex(color);
-
-    // 車の向きの真後ろからカメラで追いかける
-    const fx = Math.sin(yaw);
-    const fz = Math.cos(yaw);
-    this.camera.position.set(pos.x - fx * c.distance, c.height + pos.y, pos.z - fz * c.distance);
-    this.tmpLook.set(pos.x + fx * c.lookAhead, c.lookHeight + pos.y, pos.z + fz * c.lookAhead);
-    this.camera.lookAt(this.tmpLook);
   }
 }
 
