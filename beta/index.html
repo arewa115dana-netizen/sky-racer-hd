@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!--
+  ファイル名 : index.html
+  保存場所   : / （リポジトリのいちばん上）
+  役割       : ゲームの入口。画面の土台、Three.jsの読み込み設定、
+               エラー表示の準備、更新とオフラインの仕組み（sw.js）の登録、
+               ホーム画面に追加したときの名前とアイコン（manifest.json）の指定
+  バージョン : 0.12.2（Phase12 Step12-2）
+  メモ       : 読み込み失敗を画面に出すのはプログラム（script）だけ。
+               フォントなど、なくてもゲームが動くものの失敗は画面に出さない（通信の悪い所でも遊べるように）
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b1530">
+  <meta name="apple-mobile-web-app-title" content="Sky Racer">
+  <title>Sky Racer HD（お試し版）</title>
+  <!-- ホーム画面に追加したときの設定とアイコン -->
+    <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- 更新を確実に反映する仕組みが働いているときは、バージョン番号の後ろに緑の ● を出す -->
+  <style>
+    html[data-sw="on"] #version::after {
+      content: " ●";
+      color: #7cfc7c;
+    }
+  </style>
+
+  <!-- エラーを画面に表示する仕組み（ゲーム本体より先に動かす） -->
+  <script>
+    (function () {
+      function showError(message) {
+        var box = document.getElementById('error');
+        if (!box) {
+          window.addEventListener('DOMContentLoaded', function () { showError(message); });
+          return;
+        }
+        box.style.display = 'block';
+        box.textContent += message + '\n\n';
+      }
+      window.__showError = showError;
+
+      window.addEventListener('error', function (e) {
+        if (e && e.message) {
+          var where = e.filename ? '\n場所: ' + e.filename + ' (' + e.lineno + '行目)' : '';
+          showError('エラー: ' + e.message + where);
+        } else if (e && e.target && e.target.tagName === 'SCRIPT') {
+          // プログラムが読めないとゲームが動かないので知らせる
+          showError('読み込み失敗: ' + e.target.src);
+        } else if (e && e.target && (e.target.src || e.target.href)) {
+          // フォントや画像などは、なくても遊べるので記録だけ残す
+          console.warn('読み込み失敗（ゲームは続けられます）: ' + (e.target.src || e.target.href));
+        }
+      }, true);
+
+      window.addEventListener('unhandledrejection', function (e) {
+        var reason = e && e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : '不明';
+        showError('エラー(非同期): ' + reason);
+      });
+
+      // 10秒たってもゲームが起動しなければ知らせる
+      setTimeout(function () {
+        if (!window.__SKY_READY) {
+          showError('起動できませんでした。\n・通信状態を確認して再読み込みしてください\n・js/main.js のファイル名と保存場所を確認してください');
+        }
+      }, 10000);
+    })();
+  </script>
+
+
+  <!-- Three.js の読み込み設定（バージョン固定：0.184.0） -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="hud">
+    <div id="info">起動中...</div>
+  </div>
+
+  <div id="version"></div>
+  <div style="position:fixed;left:6px;top:4px;z-index:30;font:bold 11px sans-serif;color:#ffd34a;text-shadow:1px 1px 0 #000;pointer-events:none">お試し版 BETA</div>
+
+  <div id="rotate">
+    <div class="rotate-box">
+      <div class="rotate-icon">⟳</div>
+      <div>スマホを横向きにしてください</div>
+    </div>
+  </div>
+
+  <pre id="error"></pre>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
