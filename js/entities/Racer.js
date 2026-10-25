@@ -2,7 +2,7 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.7.1（Phase7 Step7-1）
+  バージョン : 0.12.1（Phase12 Step12-1：加速の能力でブーストも強くなる）
   メモ       : 状態は 走行（drive）・ドリフト（drift）・空中（air）・復帰中（respawn）。
                空中では上下に動ける（飛行の能力で速さが変わる）。
                ドリフト：地上でドリフトボタンを押しながら曲がると始まり、火花を2段階で溜め、
@@ -79,6 +79,8 @@ export class Racer {
     const r = CONFIG.racer;
     this.maxSpeed = r.baseMaxSpeed + (st.speed - 3) * r.maxSpeedPerStat;
     this.accel = r.baseAccel + (st.accel - 3) * r.accelPerStat;
+    // 加速の能力が高いほど、ブースト・ミニターボの伸びも大きい（ウィッチの「魔力で一気に加速」）
+    this.boostMultiplier = r.boostMultiplier + (st.accel - 3) * r.boostPerAccel;
     this.turnRate = r.baseTurnRate + (st.handling - 3) * r.turnPerStat;
     // 飛行の能力：空中での上下の速さと、空中での最高速の倍率
     this.climbRate = r.climbRate * (1 + (st.flight - 3) * r.climbPerStat);
@@ -156,7 +158,7 @@ export class Racer {
     const drifting = this.state === 'drift';
     let top = this.maxSpeed * this.speedScale * (inAir ? this.airSpeedScale : 1);
     if (drifting) top *= r.driftSpeedScale;
-    let target = boosting ? top * r.boostMultiplier : top;
+    let target = boosting ? top * this.boostMultiplier : top;
     if (input.brake) target = 0;
     if (this.speed < target) {
       const a = boosting ? r.boostAccel : this.accel;
