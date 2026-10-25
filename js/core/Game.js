@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.5.1（Phase5 Step5-1）
+  バージョン : 0.5.2（Phase5 Step5-2）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                タイトル・キャラ選択などの画面はPhase9で追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
@@ -44,6 +44,7 @@ export class Game {
     this.environment = null;
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
+    this.playerCharIndex = 0;  // プレイヤーのキャラクター番号
 
     // 実際に描いた回数（省電力モードでの本当のFPS）
     this.drawnFrames = 0;
@@ -90,6 +91,13 @@ export class Game {
 
     this.startRace(0);
     this.loop.start();
+
+    // 結果表が出ているときは Enter キーでも「もう一度」
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Enter' && this.session && this.session.resultsShown) {
+        this.startRace(this.playerCharIndex);
+      }
+    });
   }
 
   // ---- レースを始める（前のレースがあれば片付けてから） ----
@@ -97,6 +105,8 @@ export class Game {
     if (this.session) {
       this.session.dispose();
     }
+    this.playerCharIndex = playerCharIndex;
+    this.input.setEnabled(true);
     this.session = new RaceSession({
       scene: this.scene,
       track: this.track,
@@ -105,7 +115,8 @@ export class Game {
       cameraRig: this.cameraRig,
       audio: this.audio,
       debug: this.debug,
-      playerCharIndex
+      playerCharIndex,
+      onRetry: () => this.startRace(this.playerCharIndex)
     });
     this.setState('RACE');
     const ch = CHARACTERS[playerCharIndex];
@@ -189,6 +200,7 @@ export class Game {
         const n = Number(e.code.slice(5));
         if (n >= 1 && n <= CHARACTERS.length) {
           this.session.selectCharacter(n - 1);
+          this.playerCharIndex = n - 1;
         }
       }
     });
