@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.5.2（Phase5 Step5-2）
+  バージョン : 0.5.3（Phase5 Step5-2 修正）
 */
 
 import { CONFIG } from '../config.js';
@@ -308,9 +308,7 @@ export class RaceSession {
       this.scene.remove(sprite.object3d);
       sprite.geometry.dispose();
     }
-    if (this.hud.root.parentNode) {
-      this.hud.root.parentNode.removeChild(this.hud.root);
-    }
+    this.hud.dispose();
   }
 }
 
