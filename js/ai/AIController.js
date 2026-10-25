@@ -3,14 +3,16 @@
   保存場所   : /js/ai
   役割       : CPUの思考。プレイヤーと同じ「入力状態」（旋回・上下・ドリフト・ブースト）を
                作るだけで、動きはプレイヤーと同じ物理（Racer）で行う（ズルをしない）
-  バージョン : 0.6.1（Phase6 Step6-1）
+  バージョン : 0.6.3（Phase6 Step6-3）
 
   考え方
     ・少し先のコースの曲がり具合を見て、カーブの内側寄りの走行ラインを決める
     ・CPUごとに「好きな走行位置（左寄り・右寄り）」と「腕前」を持たせ、団子状態を防ぐ
     ・ゲージが満タンで、先がまっすぐなときにブーストを使う
     ・柵のない所では端に寄りすぎない（落ちにくくする）
-    ・空中では、CPUごとに好きな高さを保つ（リングを狙う動きはStep6-3）
+    ・空中では、CPUごとに好きな高さを保つ
+    ・前方のリングを狙う。高く飛ぶのが好きなCPUは高いルート（金）、低いのが好きなCPUは低いルート（青）。
+      狙うかどうかはリングごとに腕前で決める（毎回全部は取らない）
 */
 
 import { CONFIG } from '../config.js';
@@ -29,7 +31,15 @@ export class AIController {
     this.heightBias = personality.heightBias || 0;   // 空中で好きな高さ（メートル）
     this.time = personality.seed || 0;   // ふらつきの位相をCPUごとにずらす
     this.boostWait = 0;                  // ブーストを使うまでの迷い時間
+    this.rings = null;                   // コースのリング（setRings で受け取る）
+    this.ringDecisions = new Map();      // リングごとに「狙う／狙わない」を一度だけ決めて覚える
+    this.ringTarget = null;              // 今狙っているリング
     this.input = { steer: 0, pitch: 0, drift: false, boost: false, brake: false };
+  }
+
+  // コースのリングを教える（RaceSession が呼ぶ）
+  setRings(rings) {
+    this.rings = rings;
   }
 
   // 1回の計算（1/60秒）ごとに呼ぶ。入力状態を返す
@@ -41,6 +51,7 @@ export class AIController {
     this.time += dt;
 
     input.boost = false;
+    this.ringTarget = this.pickRing();
     input.pitch = this.thinkHeight();
     input.drift = false;
     input.brake = false;
@@ -59,6 +70,11 @@ export class AIController {
     let targetX = this.lineOffset * half * a.lineSpread;
     const inside = -Math.sign(curvAhead) * Math.min(1, Math.abs(curvAhead) * a.insideGain);
     targetX += inside * half * a.insideAmount;
+
+    // 狙っているリングがあれば、その左右の位置へ向かう
+    if (this.ringTarget) {
+      targetX = this.ringTarget.x;
+    }
 
     // 柵のない所では端に寄りすぎない
     const openEdge = t.zoneAt(r.s + look) === 'ground' && t.edgeAt(r.s + look) === 'open';
@@ -90,14 +106,57 @@ export class AIController {
     return input;
   }
 
-  // 空中で好きな高さに近づける上下の入力（地上では 0）
+  // 空中で目標の高さに近づける上下の入力（地上では 0）。リングを狙っていればその高さ
   thinkHeight() {
     const r = this.racer;
     if (this.track.zoneAt(r.s) !== 'air') return 0;
     const a = CONFIG.ai;
-    const error = this.heightBias - r.y;
+    const targetY = this.ringTarget ? this.ringTarget.y : this.heightBias;
+    const error = targetY - r.y;
     return clamp(error * a.pitchToHeight - r.vy * a.pitchDamping, -1, 1);
   }
+
+  // 前方の、狙うと決めたリングのうち一番近いものを選ぶ（なければ null）
+  pickRing() {
+    if (!this.rings) return null;
+    const a = CONFIG.ai;
+    const r = this.racer;
+    const len = this.track.length;
+    const prefersHigh = this.heightBias >= 0;
+    let best = null;
+    let bestDist = Infinity;
+    const list = this.rings.list;
+
+    for (let i = 0; i < list.length; i += 1) {
+      const ring = list[i];
+      // 好きなルートのリングだけを候補にする
+      if ((ring.y > 0) !== prefersHigh) continue;
+      let ahead = ring.s - r.s;
+      if (ahead < 0) ahead += len;
+      if (ahead < 2 || ahead > a.ringLookAhead) continue;
+
+      // このリングを狙うかどうかは、周回ごとに一度だけ決める
+      const lap = Math.floor((r.distance + ahead) / len);
+      const key = i + ':' + lap;
+      if (!this.ringDecisions.has(key)) {
+        const roll = pseudoRandom(i * 7.3 + lap * 13.1 + this.time * 0.01);
+        this.ringDecisions.set(key, roll < this.skill * a.ringAimChance);
+      }
+      if (!this.ringDecisions.get(key)) continue;
+
+      if (ahead < bestDist) {
+        bestDist = ahead;
+        best = ring;
+      }
+    }
+    return best;
+  }
+}
+
+// 0〜1 の疑似乱数（同じ数を入れると同じ結果）
+function pseudoRandom(n) {
+  const v = Math.sin(n * 12.9898) * 43758.5453;
+  return v - Math.floor(v);
 }
 
 function clamp(v, min, max) {
