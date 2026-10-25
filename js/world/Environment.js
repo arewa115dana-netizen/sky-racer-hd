@@ -3,16 +3,17 @@
   保存場所   : /js/world
   役割       : 背景。空・太陽・雲海・浮遊島・遠景の島・古代遺跡のアーチ・神殿の柱と門。
                浮遊島の上とコースの路肩には、ドット絵の草木を置く（Decor.js）
-               遺跡と神殿の建物は Buildings.js が作る
+               遺跡と神殿の建物は Buildings.js、本殿・かがり火・旗・ツタ・浮かぶ瓦礫は Landmarks.js が作る
                スマホで軽く動くよう、重い後処理を使わず「見た目だけ再現」する
                （ぼかした遠景で被写界深度風、光る板で軽量ブルーム風）
-  バージョン : 0.8.6（Phase8 Step8-6）
+  バージョン : 0.8.7（Phase8 Step8-7）
 */
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { buildDecor } from './Decor.js';
 import { buildBuildings } from './Buildings.js';
+import { buildLandmarks } from './Landmarks.js';
 
 export class Environment {
   constructor(scene, quality, track) {
@@ -40,7 +41,11 @@ export class Environment {
     scene.add(this.buildFarIslands(low ? 6 : 10));
     scene.add(this.buildIslands(low ? Math.round(e.islandCount / 2) : e.islandCount));
     // 遺跡のアーチ・神殿の柱・ゴールの門
-    scene.add(buildBuildings(track));
+    const buildings = buildBuildings(track);
+    scene.add(buildings.group);
+    // 本殿・かがり火・旗・ツタ・浮かぶ瓦礫（炎と火の粉は毎フレーム動かす）
+    this.landmarks = buildLandmarks(track, buildings.anchors, quality.level);
+    scene.add(this.landmarks.group);
     // 草木（浮遊島の上と、コースの路肩）
     scene.add(buildDecor(track, this.islandSpots, quality.level));
   }
@@ -49,6 +54,7 @@ export class Environment {
   update(dt, cameraPosition) {
     const e = CONFIG.environment;
     this.time += dt;
+    this.landmarks.update(dt);
 
     // 空と太陽はカメラについて動かす（どこまで行っても届かない遠さに見せる）
     this.sky.position.copy(cameraPosition);
