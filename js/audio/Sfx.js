@@ -3,7 +3,7 @@
   保存場所   : /js/audio
   役割       : 効果音の「作り方（レシピ）」をまとめたファイル。音声ファイルは使わず、
                Web Audio で波の形・高さ・長さを組み合わせて、その場で音を作る
-  バージョン : 0.10.1（Phase10 Step10-1）
+  バージョン : 0.10.3（Phase10 Step10-3）
   使い方     : AudioManager.play('名前') から呼ばれる。名前と音の対応は下の SFX を見る
 
   音の一覧
@@ -11,7 +11,7 @@
     lap      周回「ピロリン」                finalLap 最終周「ピロリロリン↑」
     goal     ゴールのファンファーレ          bump     ぶつかった「ドン」
     fall     コースから落ちた「ヒュー↓」     respawn  復帰「キラリン↑」
-    ring     リング「ピロン」                boost    ブースト「シュワーン」
+    ring     リング「ピロン」（続けて取ると高くなる）  boost    ブースト「シュワーン」
     turbo    ミニターボ「パシュッ」          select   選ぶ「ピッ」（小さく）
     decide   決定「ピコン」
 */
@@ -77,7 +77,7 @@ function noise(ctx, out, o) {
   src.stop(t0 + o.dur + 0.02);
 }
 
-// ---- 効果音のレシピ（ctx, out, vol: 効果音全体の大きさ） ----
+// ---- 効果音のレシピ（ctx, out, vol: 効果音全体の大きさ, o: 音ごとの追加の指定） ----
 export const SFX = {
   // カウントダウン「ピッ」
   count(ctx, out, vol) {
@@ -136,10 +136,13 @@ export const SFX = {
     });
   },
 
-  // リング「ピロン」
-  ring(ctx, out, vol) {
-    tone(ctx, out, { type: 'triangle', freq: 880, dur: 0.18, vol: vol * 0.6 });
-    tone(ctx, out, { type: 'triangle', freq: 1320, at: 0.07, dur: 0.18, vol: vol * 0.6 });
+  // リング「ピロン」。o.pitch で高さを変える（続けて取るほど高く。1 = いつもの高さ）
+  ring(ctx, out, vol, o) {
+    const k = o && o.pitch ? o.pitch : 1;
+    tone(ctx, out, { type: 'triangle', freq: 880 * k, dur: 0.18, vol: vol * 0.6 });
+    tone(ctx, out, { type: 'triangle', freq: 1320 * k, at: 0.07, dur: 0.18, vol: vol * 0.6 });
+    // 3つ目以降は、きらっと高い音を足す
+    if (k > 1.2) tone(ctx, out, { type: 'triangle', freq: 1760 * k, at: 0.14, dur: 0.14, vol: vol * 0.35 });
   },
 
   // ブースト「シュワーン」（音程が駆け上がる）
