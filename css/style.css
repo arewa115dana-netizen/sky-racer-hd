@@ -3,7 +3,7 @@
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.9.4（Phase9 Step9-4）
+  バージョン : 0.10.3（Phase10 Step10-3）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
@@ -906,9 +906,9 @@ body.in-menu #touch-ui {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 460px;
-  padding: 18px 22px;
+  padding: 12px 22px 16px;
   box-sizing: border-box;
   background: rgba(16, 28, 64, 0.92);
   border: 3px solid #1a2a5a;
@@ -963,7 +963,7 @@ body.in-menu #touch-ui {
 .menu-rows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   width: 100%;
 }
 
@@ -981,14 +981,15 @@ body.in-menu #touch-ui {
 }
 
 .menu-label small {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.2;
   color: rgba(255, 255, 255, 0.7);
 }
 
 .menu-toggle {
   flex: 0 0 auto;
   min-width: 96px;
-  min-height: 44px;
+  min-height: 42px;
   font-size: 17px;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.45);
@@ -1014,8 +1015,8 @@ body.in-menu #touch-ui {
 }
 
 .menu-step {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   font-size: 22px;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.5);
