@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.3.3（Phase3 Step3-3）
+  バージョン : 0.4.1（Phase4 Step4-1）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.3.3',
+  VERSION: '0.4.1',
 
   // ゲームループ
   loop: {
@@ -114,6 +114,40 @@ export const CONFIG = {
     buttonBoostTime: 1.2,// ブーストボタン1回で加速する時間（秒）
     gaugeCost: 1,        // ブーストボタン1回で使うゲージ（満タン = 1）
     gaugeRegen: 0.2      // ゲージの自然回復（1秒あたり）※Phase2の試走用。Phase6で0にしてリングで溜める
+  },
+
+  // レース
+  race: {
+    racerCount: 6,       // レーサーの人数（プレイヤー含む）
+    playerGridSlot: 3,   // プレイヤーのスタート位置（0 = 先頭。3 = 4番手）
+    gridFront: 6,        // 先頭がスタートラインの何メートル後ろに並ぶか
+    gridRowGap: 7,       // 列と列の間隔（メートル）
+    gridSideOffset: 3.5  // 左右の列が中心から何メートル離れるか
+  },
+
+  // CPUの思考（AIController が使う）
+  ai: {
+    lookAheadBase: 6,    // 何メートル先のコースを見るか（基本）
+    lookAheadTime: 0.35, // 速さ×この秒数ぶん、さらに先を見る
+    lineSpread: 0.45,    // 好きな走行位置の広がり（道幅の半分に対する割合）
+    insideGain: 40,      // カーブの内側へ寄る反応の強さ
+    insideAmount: 0.4,   // カーブの内側へ寄る量（道幅の半分に対する割合）
+    openEdgeMargin: 3.5, // 柵のない所で端から離れる距離（メートル）
+    wallEdgeMargin: 1.5, // 柵のある所で端から離れる距離（メートル）
+    wobble: 2.0,         // 腕前が低いときのふらつきの幅（メートル）
+    steerToLine: 0.12,   // 走行ラインへ戻ろうとする強さ
+    steerToAngle: 2.2,   // 向きのずれを直そうとする強さ
+    steerToCurve: 12,    // 先のカーブに合わせて曲がり始める強さ
+    straightCurvature: 0.006, // これより曲がりがゆるければ「まっすぐ」とみなす
+    boostDelay: 0.8,     // ブーストを使えるようになってから使うまでの迷い（秒）
+    // CPU5人の性格（lineOffset: 好きな走行位置 -1=左〜1=右、skill: 腕前 0〜1）
+    personalities: [
+      { lineOffset: -0.6, skill: 0.95 },
+      { lineOffset: 0.5, skill: 0.85 },
+      { lineOffset: 0.0, skill: 0.9 },
+      { lineOffset: -0.2, skill: 0.75 },
+      { lineOffset: 0.7, skill: 0.8 }
+    ]
   },
 
   // コースの見た目（CourseBuilder が使う）
