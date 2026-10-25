@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.6.3（Phase6 Step6-3）
+  バージョン : 0.7.1（Phase7 Step7-1）
 */
 
 import { CONFIG } from '../config.js';
@@ -47,7 +47,8 @@ export class RaceSession {
     this.playerSprite = null;
     this.playerBumps = 0;
     this.lastBoostTime = 0;
-    this.hudView = { rank: 0, total: 0, lap: 1, laps: 3, time: 0, gauge: 0, countdown: null };
+    this.hudView = { rank: 0, total: 0, lap: 1, laps: 3, time: 0, gauge: 0, countdown: null, drift: -1 };
+    this.playerTurbos = 0;
 
     // スタートダッシュ：'none'（まだ）/ 'ready'（成功の予定）/ 'early'（押すのが早すぎ）
     this.dashState = 'none';
@@ -217,6 +218,15 @@ export class RaceSession {
       this.debug.log('コースアウト！');
     }
 
+    // ミニターボを数える（デバッグ表示用）
+    if (player.lastTurbo > 0) {
+      this.playerTurbos += 1;
+      player.lastTurbo = 0;
+    }
+    for (const r of this.racers) {
+      if (!r.isPlayer) r.lastTurbo = 0;
+    }
+
     // ブーストが始まった瞬間に音を鳴らす
     if (player.boostTime > this.lastBoostTime + 0.01) {
       this.audio.play('boost');
@@ -302,6 +312,7 @@ export class RaceSession {
     v.laps = race.laps;
     v.time = finishTime !== null ? finishTime : race.time;
     v.gauge = player.gauge;
+    v.drift = player.state === 'drift' ? player.driftLevel : -1;
     v.countdown = race.countdownText();
     this.hud.update(v, frameTime);
   }
@@ -340,9 +351,10 @@ export class RaceSession {
       '位置 ' + p.s.toFixed(0) + '/' + t.length.toFixed(0) + ' m  横 ' + fmt(p.x) + '  ' +
         AREA_NAMES[t.areaAt(p.s)] + (t.zoneAt(p.s) === 'air' ? '（空中）' : ''),
       'ゲージ ' + Math.round(p.gauge * 100) + '%  ブースト残 ' + p.boostTime.toFixed(1) +
-        (p.wallHit ? '  壁' : '') + '  状態 ' + p.state + '  落下 ' + p.fallCount + '回',
+        (p.wallHit ? '  壁' : '') + '  状態 ' + p.state + '  落下 ' + p.fallCount + '回' +
+        (p.state === 'drift' ? '  ドリフト ' + ['溜め中', '青●', 'オレンジ●●'][p.driftLevel] : ''),
       'レース ' + this.race.phase + '  CPUの落下 ' + cpuFalls + '回  自分の接触 ' + this.playerBumps + '回' +
-        '  リング ' + this.playerRings + '個'
+        '  リング ' + this.playerRings + '個  ミニターボ ' + this.playerTurbos + '回'
     ];
   }
 
