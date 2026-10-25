@@ -3,12 +3,13 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.9.4b（Phase9 Step9-4 修正）
-  メモ       : エンジン音・ブースト音・リング音・ドリフト音・ミニターボ音。
-               BGMと他の効果音はPhase10で追加する
+  バージョン : 0.10.1（Phase10 Step10-1）
+  メモ       : ずっと鳴る音（エンジン音・ドリフト音）はここで作る。
+               1回だけ鳴る効果音のレシピは Sfx.js にまとめてある。BGMは Phase10 の続きで追加する
 */
 
 import { CONFIG } from '../config.js';
+import { SFX } from './Sfx.js';
 
 export class AudioManager {
   constructor() {
@@ -165,82 +166,11 @@ export class AudioManager {
     this.driftGain.gain.setTargetAtTime(CONFIG.audio.driftVolume, now, 0.04);
   }
 
-  // ---- 効果音 ----
+  // ---- 効果音（レシピは Sfx.js） ----
   play(name) {
-    if (!this.unlocked || this.paused) return;
-    if (name === 'boost') {
-      this.playBoost();
-    } else if (name === 'ring') {
-      this.playRing();
-    } else if (name === 'turbo') {
-      this.playTurbo();
-    }
-  }
-
-  // ミニターボ音：短い「パシュッ」（ブースト音と重なって鳴る）
-  playTurbo() {
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(1200, now);
-    osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(CONFIG.audio.sfxVolume * 0.35, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
-    osc.connect(gain);
-    gain.connect(this.master);
-    osc.start(now);
-    osc.stop(now + 0.17);
-  }
-
-  // リング音：高い音が2つ続く「ピロン」
-  playRing() {
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
-    const vol = CONFIG.audio.sfxVolume * 0.6;
-    [[880, 0], [1320, 0.07]].forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, now + delay);
-      gain.gain.exponentialRampToValueAtTime(vol, now + delay + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.18);
-      osc.connect(gain);
-      gain.connect(this.master);
-      osc.start(now + delay);
-      osc.stop(now + delay + 0.2);
-    });
-  }
-
-  // ブースト音：音程が駆け上がる「シュワーン」
-  playBoost() {
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
-    const vol = CONFIG.audio.sfxVolume;
-
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(180, now);
-    osc.frequency.exponentialRampToValueAtTime(900, now + 0.35);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(600, now);
-    filter.frequency.exponentialRampToValueAtTime(2400, now + 0.35);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(vol, now + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.master);
-    osc.start(now);
-    osc.stop(now + 0.65);
+    if (!this.unlocked || this.paused || !this.isRunning()) return;
+    const recipe = SFX[name];
+    if (recipe) recipe(this.ctx, this.master, CONFIG.audio.sfxVolume);
   }
 
   // BGM（Phase10で追加）
