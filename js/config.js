@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.5.1（Phase5 Step5-1）
+  バージョン : 0.5.2（Phase5 Step5-2）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.5.1',
+  VERSION: '0.5.2',
 
   // ゲームループ
   loop: {
@@ -121,6 +121,11 @@ export const CONFIG = {
     racerCount: 6,       // レーサーの人数（プレイヤー含む）
     laps: 3,             // 周回数
     countdownTime: 3,    // カウントダウンの長さ（秒）
+    startDashWindow: 0.5,// GOの何秒前までにブーストを押すとスタートダッシュ成功か
+    startDashTime: 1.2,  // スタートダッシュの加速時間（秒）
+    cpuDashChance: 0.6,  // CPUのスタートダッシュ成功率（腕前を掛ける）
+    resultMinWait: 3,    // 自分のゴールから結果表を出すまでの最短時間（秒）
+    resultMaxWait: 10,   // 全員のゴールを待つ最長時間（秒）
     playerGridSlot: 3,   // プレイヤーのスタート位置（0 = 先頭。3 = 4番手）
     gridFront: 6,        // 先頭がスタートラインの何メートル後ろに並ぶか
     gridRowGap: 7,       // 列と列の間隔（メートル）
