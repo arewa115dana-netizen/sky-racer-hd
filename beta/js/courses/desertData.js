@@ -2,7 +2,7 @@
   ファイル名 : desertData.js
   保存場所   : /js/courses
   役割       : 夕焼けの砂漠遺跡コースの形とリング（データのみ。書き方は CourseData.js と同じ）
-  バージョン : 1.14.0（Phase14 Step14-1）
+  バージョン : 1.15.0（Phase15：砂丘をうねる丘に）
 
   区間
     oasis    … スタートのオアシス（地上・柵あり）
@@ -15,6 +15,8 @@
 export const DESERT = {
   name: '夕焼けの砂漠遺跡',
   sectors: 8,
+  // 砂丘はうねる丘（上りで遅く、下りで速い）
+  hills: [{ area: 'dunes', height: 6, length: 90 }],
   points: [
     // 1 オアシス（スタート）
     { x: -80,  y: 0,  z: -10,  width: 18, zone: 'ground', edge: 'wall', area: 'oasis' },

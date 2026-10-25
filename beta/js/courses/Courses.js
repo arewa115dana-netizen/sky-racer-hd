@@ -19,6 +19,8 @@ import { buildBuildings } from '../world/Buildings.js';
 import { buildLandmarks } from '../world/Landmarks.js';
 import { DESERT_COURSE } from './desert.js';
 import { ICE_COURSE } from './ice.js';
+import { HARBOR_COURSE } from './harbor.js';
+import { VOLCANO_COURSE } from './volcano.js';
 
 export const COURSES = [
   {
@@ -44,9 +46,9 @@ export const COURSES = [
   },
   DESERT_COURSE,
   ICE_COURSE,
+  HARBOR_COURSE,
+  VOLCANO_COURSE,
   // ---- これから作るコース（準備中） ----
-  { id: 'harbor', ready: false, name: '雲海の港町', sub: '飛行船が浮かぶ港と、カラフルな町並み', stars: 3, color: '#ffd36e' },
-  { id: 'volcano', ready: false, name: '溶岩の火山島', sub: '赤く光る溶岩と、舞い上がる火の粉', stars: 5, color: '#ff6a4a' },
   { id: 'observatory', ready: false, name: '星空の天文塔', sub: '光る水晶と、星の海を回る塔', stars: 4, color: '#b49cff' },
   { id: 'mushroom', ready: false, name: 'キノコの森', sub: '巨大キノコと木の根の上を走る', stars: 3, color: '#8fe07a' }
 ];

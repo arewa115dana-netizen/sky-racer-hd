@@ -4,7 +4,11 @@
   役割       : コースの中心線。CourseData の制御点をなめらかな曲線でつなぎ、
                2メートルごとに「位置・向き・道幅・区間の種類」を前もって計算しておく。
                レーサーの位置（コース基準座標）と画面上の位置の変換を担当する
-  バージョン : 0.11.1（Phase11 Step11-1：メモリのゴミを減らす）
+  バージョン : 1.15.0（Phase15：丘（hills）と坂の傾き（slope））
+
+  丘（コースのデータの hills）
+    { area: 区間の名前, height: 丘の高さ（m）, length: 丘1つの長さ（m） }
+    その区間の地上部分の道を、なめらかに上下させる（区間の始めと終わりでは高さ0に戻る）
 
   コース基準座標
     s : スタートから何メートル進んだか（0〜コース全長）
@@ -30,6 +34,8 @@ export class Track {
   // ---- 外から使う関数 ----
 
   widthAt(s) { return this.lerpField(this.width, s); }
+  // 道の傾き（上り坂がプラス。1メートル進むと何メートル上がるか）
+  slopeAt(s) { return this.lerpField(this.slope, s); }
   heightAt(s) { return this.lerpField(this.py, s); }
   curvatureAt(s) { return this.lerpField(this.curv, s); }
   yMinAt(s) { return this.lerpField(this.yMin, s); }
@@ -146,6 +152,9 @@ export class Track {
       this.edge[i] = p0.edge || 'wall';
     }
 
+    // 2.5) 丘：区間ごとに、地上の道をなめらかに上下させる
+    if (this.data.hills) this.applyHills(this.data.hills);
+
     // 3) 向き（前後のサンプルから求める）
     for (let i = 0; i < count; i += 1) {
       const prev = (i - 1 + count) % count;
@@ -165,6 +174,38 @@ export class Track {
         sum += raw[(i + k + count) % count];
       }
       this.curv[i] = sum / (CURVE_SMOOTH * 2 + 1);
+    }
+
+    // 5) 坂の傾き
+    this.computeSlope();
+  }
+
+  // 丘を足す（区間の地上部分の長さに、丘をちょうど何個か入れる）
+  applyHills(hills) {
+    for (const h of hills) {
+      // その区間の地上部分のサンプルを集める（区間がスタートをまたいでもよいように、順番どおりに）
+      const list = [];
+      for (let i = 0; i < this.count; i += 1) {
+        if (this.area[i] === h.area && this.zone[i] === 'ground') list.push(i);
+      }
+      if (list.length < 4) continue;
+      const len = list.length * this.step;
+      const bumps = Math.max(1, Math.round(len / h.length));
+      list.forEach((i, k) => {
+        const t = (k + 0.5) / list.length;           // 区間の中の位置（0〜1）
+        // 丘の形：1 - cos で、0 → 高さ → 0 をくり返す（区間の両端では必ず0）
+        this.py[i] += h.height * 0.5 * (1 - Math.cos(t * bumps * Math.PI * 2));
+      });
+    }
+  }
+
+  // 道の傾き（前後のサンプルの高さの差 ÷ 距離）
+  computeSlope() {
+    this.slope = new Float32Array(this.count);
+    for (let i = 0; i < this.count; i += 1) {
+      const prev = (i - 1 + this.count) % this.count;
+      const next = (i + 1) % this.count;
+      this.slope[i] = (this.py[next] - this.py[prev]) / (this.step * 2);
     }
   }
 

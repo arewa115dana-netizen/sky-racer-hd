@@ -216,10 +216,17 @@ function buildGate(track, flute, block) {
 export class ShapeBuilder {
   constructor(tile) {
     this.tile = tile;          // 模様を何メートルごとにくり返すか
+    this.tint = [1, 1, 1];     // これから足す形の色（赤・緑・青の倍率。家の壁や屋根の色分けに使う）
     this.positions = [];
     this.normals = [];
     this.uvs = [];
     this.colors = [];
+  }
+
+  // これから足す形の色を決める（16進の色。0xffffff で元の色）
+  setTint(hex) {
+    this.tint = [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+    return this;
   }
 
   isEmpty() {
@@ -235,7 +242,7 @@ export class ShapeBuilder {
       this.positions.push(v[0], v[1], v[2]);
       this.normals.push(normal[0], normal[1], normal[2]);
       this.uvs.push(uv[0] / t, uv[1] / t);
-      this.colors.push(k, k, k);
+      this.colors.push(k * this.tint[0], k * this.tint[1], k * this.tint[2]);
     }
   }
 
@@ -277,8 +284,8 @@ export class ShapeBuilder {
   }
 
   // 円柱（下の中心・半径・高さ）。模様が一周でちょうどつながるよう、くり返し回数を整数にする
-  cylinder(cx, by, cz, r, h, shade) {
-    const segments = 16;
+  // segments を渡すと角の数を変えられる（6 = 六角柱。玄武岩の柱など）。cap = true で上にふたをする
+  cylinder(cx, by, cz, r, h, shade, segments = 16, cap = false) {
     const around = Math.max(1, Math.round((Math.PI * 2 * r) / this.tile)) * this.tile;
     for (let k = 0; k < segments; k += 1) {
       const a0 = (k / segments) * Math.PI * 2;
@@ -295,6 +302,11 @@ export class ShapeBuilder {
         [cx + x1, by, cz + z1], [cx + x0, by, cz + z0], [cx + x0, by + h, cz + z0], [cx + x1, by + h, cz + z1],
         n, [u1, 0], [u0, 0], [u0, h], [u1, h], shade
       );
+      if (cap) {
+        const top = [cx, by + h, cz];
+        this.quad([cx + x1, by + h, cz + z1], [cx + x0, by + h, cz + z0], top, top, [0, 1, 0],
+          [x1, z1], [x0, z0], [0, 0], [0, 0], shade);
+      }
     }
   }
 

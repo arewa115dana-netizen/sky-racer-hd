@@ -2,7 +2,7 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 1.14.0（Phase14：氷の上ですべる）
+  バージョン : 1.15.0（Phase15：坂で速さが変わる）
   メモ       : 状態は 走行（drive）・ドリフト（drift）・空中（air）・復帰中（respawn）。
                空中では上下に動ける（飛行の能力で速さが変わる）。
                ドリフト：地上でドリフトボタンを押しながら曲がると始まり、火花を2段階で溜め、
@@ -159,6 +159,11 @@ export class Racer {
     this.updateDrift(dt, inAir);
     const drifting = this.state === 'drift';
     let top = this.maxSpeed * this.speedScale * (inAir ? this.airSpeedScale : 1);
+    // 坂：上り坂では最高速が下がり、下り坂では上がる（地上だけ）
+    if (!inAir) {
+      const slope = track.slopeAt(this.s) * r.slopeSpeed;
+      top *= 1 - Math.max(-r.slopeLimit, Math.min(r.slopeLimit, slope));
+    }
     if (drifting) top *= r.driftSpeedScale;
     let target = boosting ? top * this.boostMultiplier : top;
     if (input.brake) target = 0;
