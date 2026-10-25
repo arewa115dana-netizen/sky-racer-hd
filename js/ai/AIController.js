@@ -3,7 +3,7 @@
   保存場所   : /js/ai
   役割       : CPUの思考。プレイヤーと同じ「入力状態」（旋回・上下・ドリフト・ブースト）を
                作るだけで、動きはプレイヤーと同じ物理（Racer）で行う（ズルをしない）
-  バージョン : 0.6.3（Phase6 Step6-3）
+  バージョン : 0.7.1（Phase7 Step7-1）
 
   考え方
     ・少し先のコースの曲がり具合を見て、カーブの内側寄りの走行ラインを決める
@@ -13,6 +13,7 @@
     ・空中では、CPUごとに好きな高さを保つ
     ・前方のリングを狙う。高く飛ぶのが好きなCPUは高いルート（金）、低いのが好きなCPUは低いルート（青）。
       狙うかどうかはリングごとに腕前で決める（毎回全部は取らない）
+    ・地上の急なカーブではドリフトする。カーブが終わるか、向きが変わったら離してミニターボ
 */
 
 import { CONFIG } from '../config.js';
@@ -34,6 +35,8 @@ export class AIController {
     this.rings = null;                   // コースのリング（setRings で受け取る）
     this.ringDecisions = new Map();      // リングごとに「狙う／狙わない」を一度だけ決めて覚える
     this.ringTarget = null;              // 今狙っているリング
+    this.driftSign = 0;                  // ドリフト中の向き（0 = していない）
+    this.curveDecision = null;           // 今のカーブでドリフトするか（カーブごとに一度決める）
     this.input = { steer: 0, pitch: 0, drift: false, boost: false, brake: false };
   }
 
@@ -55,6 +58,7 @@ export class AIController {
     input.pitch = this.thinkHeight();
     input.drift = false;
     input.brake = false;
+    input.drift = this.thinkDrift();
 
     if (r.state === 'respawn') {
       input.steer = 0;
@@ -104,6 +108,44 @@ export class AIController {
     }
 
     return input;
+  }
+
+  // ドリフトするか（地上の急なカーブで押し続け、カーブが終わる・向きが変わると離す）
+  thinkDrift() {
+    const a = CONFIG.ai;
+    const r = this.racer;
+    const t = this.track;
+    if (t.zoneAt(r.s) !== 'ground' || r.state === 'respawn') {
+      this.driftSign = 0;
+      this.curveDecision = null;
+      return false;
+    }
+    const k = t.curvatureAt(r.s + a.lookAheadBase);
+    const sign = k > 0 ? -1 : 1;   // 左カーブ（k > 0）なら左（-1）へドリフト
+
+    if (this.driftSign !== 0) {
+      // カーブがゆるくなった、または向きが変わったら離す
+      if (Math.abs(k) < a.driftCurvature * 0.4 || sign !== this.driftSign) {
+        this.driftSign = 0;
+        this.curveDecision = null;
+        return false;
+      }
+      return true;
+    }
+
+    if (Math.abs(k) >= a.driftCurvature) {
+      // このカーブでドリフトするかを一度だけ決める
+      if (this.curveDecision === null) {
+        this.curveDecision = pseudoRandom(r.distance * 0.013 + this.time) < this.skill * a.driftChance;
+      }
+      if (this.curveDecision && r.speed > CONFIG.racer.driftMinSpeed) {
+        this.driftSign = sign;
+        return true;
+      }
+    } else {
+      this.curveDecision = null;
+    }
+    return false;
   }
 
   // 空中で目標の高さに近づける上下の入力（地上では 0）。リングを狙っていればその高さ
