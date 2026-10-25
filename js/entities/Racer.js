@@ -2,9 +2,11 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.6.1（Phase6 Step6-1）
-  メモ       : 状態は 走行（drive）・空中（air）・復帰中（respawn）。
-               空中では上下に動ける（飛行の能力で速さが変わる）。ドリフトはPhase7で追加する
+  バージョン : 0.7.1（Phase7 Step7-1）
+  メモ       : 状態は 走行（drive）・ドリフト（drift）・空中（air）・復帰中（respawn）。
+               空中では上下に動ける（飛行の能力で速さが変わる）。
+               ドリフト：地上でドリフトボタンを押しながら曲がると始まり、火花を2段階で溜め、
+               離すとミニターボ（ドリフトの能力で溜まる速さと長さが変わる）
                柵のない道の端から外に出ると落下し、少し手前に戻って再開する
 
   位置はコース基準座標で持つ
@@ -49,6 +51,12 @@ export class Racer {
     this.bumped = false;       // 他のレーサーとぶつかっているか（Collision が設定）
     this.speedScale = 1;       // 最高速の倍率（CPUの追い上げ補正に使う）
 
+    // ドリフト
+    this.driftDir = 0;         // ドリフトの向き（-1 = 左、1 = 右）
+    this.driftCharge = 0;      // 溜まり具合（秒に近い単位）
+    this.driftLevel = 0;       // 0 = なし、1 = 青、2 = オレンジ
+    this.lastTurbo = 0;        // 直前に出したミニターボの段階（演出・音の合図。読んだら0に戻す）
+
     // コースアウトと復帰
     this.respawnTimer = 0;     // 落ちてからの時間
     this.fallDirection = 0;    // 落ちた向き（-1 = 左、1 = 右）
@@ -75,6 +83,9 @@ export class Racer {
     // 飛行の能力：空中での上下の速さと、空中での最高速の倍率
     this.climbRate = r.climbRate * (1 + (st.flight - 3) * r.climbPerStat);
     this.airSpeedScale = 1 + (st.flight - 3) * r.airSpeedPerStat;
+    // ドリフトの能力：火花の溜まる速さと、ミニターボの長さ
+    this.driftChargeRate = 1 + (st.drift - 3) * r.driftChargePerStat;
+    this.turboScale = 1 + (st.drift - 3) * r.turboPerStat;
   }
 
   // 指定の位置に置く（スタート時・復帰時）
@@ -141,7 +152,10 @@ export class Racer {
 
     // 速さ：自動アクセルで目標の速さへ近づける（空中では飛行の能力で変わる）
     const inAir = track.zoneAt(this.s) === 'air';
-    const top = this.maxSpeed * this.speedScale * (inAir ? this.airSpeedScale : 1);
+    this.updateDrift(dt, inAir);
+    const drifting = this.state === 'drift';
+    let top = this.maxSpeed * this.speedScale * (inAir ? this.airSpeedScale : 1);
+    if (drifting) top *= r.driftSpeedScale;
     let target = boosting ? top * r.boostMultiplier : top;
     if (input.brake) target = 0;
     if (this.speed < target) {
@@ -154,7 +168,15 @@ export class Racer {
 
     // 旋回：遅いときは曲がる力を弱める
     const turnFactor = Math.min(1, this.speed / r.minTurnSpeed);
-    this.angle += input.steer * this.turnRate * turnFactor * dt;
+    if (drifting) {
+      // ドリフト中：始めた向きに強く曲がる。同じ向きに倒すとより鋭く、逆に倒すとゆるく
+      const amount = r.driftBaseTurn + r.driftSteerRange * input.steer * this.driftDir;
+      this.angle += this.driftDir * amount * this.turnRate * r.driftTurnScale * turnFactor * dt;
+      // 少し外側へ滑る
+      this.x -= this.driftDir * r.driftSlide * dt;
+    } else {
+      this.angle += input.steer * this.turnRate * turnFactor * dt;
+    }
 
     // 進む：コースが曲がると、まっすぐ進んでいても向きのずれが増える
     const k = track.curvatureAt(this.s);
@@ -176,7 +198,7 @@ export class Racer {
     // 柵のない道の端：外に出すぎると落下
     if (zone === 'ground' && track.edgeAt(this.s) === 'open') {
       this.y = 0;
-      this.state = 'drive';
+      if (this.state !== 'drift') this.state = 'drive';
       if (Math.abs(this.x) > half + r.fallMargin) {
         this.startFall();
       }
@@ -199,13 +221,62 @@ export class Racer {
     }
 
     if (zone === 'air') {
+      if (this.state === 'drift') this.endDrift(true);
       this.stepFlight(dt);
       this.state = 'air';
     } else {
       this.y = 0;
       this.vy = 0;
-      this.state = 'drive';
+      if (this.state !== 'drift') this.state = 'drive';
     }
+  }
+
+  // ---- ドリフト ----
+  // 始める・溜める・終わるの判定（毎回、旋回の計算より前に呼ぶ）
+  updateDrift(dt, inAir) {
+    const r = CONFIG.racer;
+    const input = this.input;
+
+    if (this.state === 'drift') {
+      // ボタンを離した・空中に出た → 溜めた段階のミニターボ
+      if (!input.drift || inAir) {
+        this.endDrift(true);
+        return;
+      }
+      // 遅くなりすぎた → ミニターボなしで終わる
+      if (this.speed < r.driftMinSpeed * 0.7) {
+        this.endDrift(false);
+        return;
+      }
+      // 溜める（曲がる向きに強く倒しているほど早く溜まる）
+      const tight = (input.steer * this.driftDir + 1) / 2;
+      this.driftCharge += dt * this.driftChargeRate * (0.6 + 0.4 * tight);
+      this.driftLevel = this.driftCharge >= r.driftLevel2 ? 2 : (this.driftCharge >= r.driftLevel1 ? 1 : 0);
+      return;
+    }
+
+    // 始める：地上で、ボタンを押しながら、ある程度曲がっていて、十分速い
+    if (!inAir && this.state === 'drive' && input.drift &&
+        Math.abs(input.steer) > r.driftStartSteer && this.speed > r.driftMinSpeed) {
+      this.state = 'drift';
+      this.driftDir = input.steer > 0 ? 1 : -1;
+      this.driftCharge = 0;
+      this.driftLevel = 0;
+    }
+  }
+
+  // ドリフトを終える（withTurbo が true なら、溜めた段階のミニターボを出す）
+  endDrift(withTurbo) {
+    const r = CONFIG.racer;
+    if (withTurbo && this.driftLevel > 0) {
+      const time = this.driftLevel === 2 ? r.turboTime2 : r.turboTime1;
+      this.startBoost(time * this.turboScale);
+      this.lastTurbo = this.driftLevel;
+    }
+    this.state = 'drive';
+    this.driftDir = 0;
+    this.driftCharge = 0;
+    this.driftLevel = 0;
   }
 
   // ---- 空中の上下の動き ----
@@ -239,6 +310,9 @@ export class Racer {
 
   // ---- コースアウトと復帰 ----
   startFall() {
+    this.driftDir = 0;
+    this.driftCharge = 0;
+    this.driftLevel = 0;
     this.state = 'respawn';
     this.respawnTimer = 0;
     this.fallDirection = this.x > 0 ? 1 : -1;
