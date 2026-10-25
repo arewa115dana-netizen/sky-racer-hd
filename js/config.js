@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.5.3（Phase5 Step5-2 修正）
+  バージョン : 0.5.4（Phase5 バランス調整）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.5.3',
+  VERSION: '0.5.4',
 
   // ゲームループ
   loop: {
@@ -90,7 +90,7 @@ export const CONFIG = {
   // レーサーの物理（能力値3を基準に、1段階ごとに増減する）
   racer: {
     baseMaxSpeed: 26,    // 最高速（メートル/秒）。能力値3のとき
-    maxSpeedPerStat: 1.0,// 最高速の能力値1段階あたりの差（Step4-2で1.5から縮小）
+    maxSpeedPerStat: 0.6,// 最高速の能力値1段階あたりの差（1.5 → 1.0 → 0.6 に縮小）
     baseAccel: 8,        // 加速の強さ（メートル/秒毎秒）。能力値3のとき
     accelPerStat: 2.5,   // 加速の能力値1段階あたりの差（Step4-2で2から拡大）
     baseTurnRate: 1.5,   // 曲がる速さ（ラジアン/秒）。能力値3のとき
@@ -144,9 +144,9 @@ export const CONFIG = {
 
   // CPUの追い上げ補正（設計書2-8章）
   rubberBand: {
-    range: 150,          // プレイヤーとの差がこの距離で補正が最大になる（メートル）
-    maxSlow: 0.05,       // 前にいるCPUの最高速を最大何割下げるか（5％）
-    maxFast: 0.05        // 後ろにいるCPUの最高速を最大何割上げるか（5％）
+    range: 100,          // プレイヤーとの差がこの距離で補正が最大になる（メートル）
+    maxSlow: 0.08,       // 前にいるCPUの最高速を最大何割下げるか（8％）
+    maxFast: 0.08        // 後ろにいるCPUの最高速を最大何割上げるか（8％）
   },
 
   // CPUの思考（AIController が使う）
@@ -166,11 +166,11 @@ export const CONFIG = {
     boostDelay: 0.8,     // ブーストを使えるようになってから使うまでの迷い（秒）
     // CPU5人の性格（lineOffset: 好きな走行位置 -1=左〜1=右、skill: 腕前 0〜1）
     personalities: [
-      { lineOffset: -0.6, skill: 0.95 },
-      { lineOffset: 0.5, skill: 0.85 },
+      { lineOffset: -0.6, skill: 0.92 },
+      { lineOffset: 0.5, skill: 0.88 },
       { lineOffset: 0.0, skill: 0.9 },
-      { lineOffset: -0.2, skill: 0.75 },
-      { lineOffset: 0.7, skill: 0.8 }
+      { lineOffset: -0.2, skill: 0.86 },
+      { lineOffset: 0.7, skill: 0.88 }
     ]
   },
 
