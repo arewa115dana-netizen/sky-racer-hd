@@ -5,7 +5,7 @@
                ・コースの柵の外側に作った「草の路肩」
                ・浮遊島の上
                に並べる。HD-2Dらしい「ドット絵の草木が立つ箱庭」の見た目にする
-  バージョン : 0.8.5（Phase8 Step8-5）
+  バージョン : 0.11.2（Phase11 Step11-2）
 
   軽くするための工夫
     ・草木の絵は、プログラムで1枚の小さな画像（256×64）にまとめて描く（画像ファイル不要）
@@ -72,7 +72,10 @@ export function buildDecor(track, islands, level) {
   // ---- 種類ごとにまとめて1回で描く ----
   for (const [name, list] of Object.entries(spots)) {
     if (list.length === 0) continue;
-    group.add(makeInstances(KINDS[name], list, material));
+    const mesh = makeInstances(KINDS[name], list, material);
+    // 草・花・茂み（木以外）は「小物」。重い端末では自動で隠す（Environment.reduce）
+    mesh.userData.small = !name.startsWith('tree');
+    group.add(mesh);
   }
   return group;
 }
