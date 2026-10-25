@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.6.1（Phase6 Step6-1）
+  バージョン : 0.6.2（Phase6 Step6-2）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.6.1',
+  VERSION: '0.6.2',
 
   // ゲームループ
   loop: {
@@ -119,7 +119,7 @@ export const CONFIG = {
     boostAccel: 20,      // ブースト中の加速の強さ
     buttonBoostTime: 1.2,// ブーストボタン1回で加速する時間（秒）
     gaugeCost: 1,        // ブーストボタン1回で使うゲージ（満タン = 1）
-    gaugeRegen: 0.2      // ゲージの自然回復（1秒あたり）※Phase2の試走用。Phase6で0にしてリングで溜める
+    gaugeRegen: 0        // ゲージの自然回復（1秒あたり）。Step6-2から0（リングで溜める）
   },
 
   // レース
@@ -136,6 +136,18 @@ export const CONFIG = {
     gridFront: 6,        // 先頭がスタートラインの何メートル後ろに並ぶか
     gridRowGap: 7,       // 列と列の間隔（メートル）
     gridSideOffset: 3.5  // 左右の列が中心から何メートル離れるか
+  },
+
+  // 空中のリング（Rings が使う）
+  rings: {
+    radius: 3.0,         // リングの大きさ（半径・メートル）
+    tube: 0.35,          // リングの太さ
+    hitSize: 3.0,        // 中心から上下左右にこの距離以内を通れば取れる（メートル）
+    gaugeAmount: 0.25,   // 青いリング1つで溜まるゲージ（満タン = 1）
+    boostTime: 1.0,      // 金のリングのブースト時間（秒）
+    startGauge: 0,       // レース開始時のゲージ
+    gaugeColor: 0x5fd4ff,// 青いリングの色
+    boostColor: 0xffcf4a // 金のリングの色
   },
 
   // レーサー同士の押し合い（Collision が使う）
