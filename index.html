@@ -4,7 +4,9 @@
   保存場所   : / （リポジトリのいちばん上）
   役割       : ゲームの入口。画面の土台、Three.jsの読み込み設定、
                エラー表示の準備、更新を確実に反映する仕組み（sw.js）の登録
-  バージョン : 0.2.3（Phase2 Step2-3）
+  バージョン : 0.11.1（Phase11 Step11-1）
+  メモ       : 読み込み失敗を画面に出すのはプログラム（script）だけ。
+               フォントなど、なくてもゲームが動くものの失敗は画面に出さない（通信の悪い所でも遊べるように）
 -->
 <html lang="ja">
 <head>
@@ -43,8 +45,12 @@
         if (e && e.message) {
           var where = e.filename ? '\n場所: ' + e.filename + ' (' + e.lineno + '行目)' : '';
           showError('エラー: ' + e.message + where);
+        } else if (e && e.target && e.target.tagName === 'SCRIPT') {
+          // プログラムが読めないとゲームが動かないので知らせる
+          showError('読み込み失敗: ' + e.target.src);
         } else if (e && e.target && (e.target.src || e.target.href)) {
-          showError('読み込み失敗: ' + (e.target.src || e.target.href));
+          // フォントや画像などは、なくても遊べるので記録だけ残す
+          console.warn('読み込み失敗（ゲームは続けられます）: ' + (e.target.src || e.target.href));
         }
       }, true);
 
