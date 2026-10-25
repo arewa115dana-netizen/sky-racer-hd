@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.10.2（Phase10 Step10-2）
+  バージョン : 0.11.1（Phase11 Step11-1）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -102,6 +102,8 @@ export class Game {
     });
 
     this.screens.showTitle();
+    // 景色の描き方（シェーダー）を、最初にまとめて準備しておく（初めて映った瞬間の引っかかりを防ぐ）
+    this.precompile();
     this.loop.start();
 
     // 結果表が出ているときは Enter キーでも「もう一度」
@@ -134,8 +136,62 @@ export class Game {
     });
     this.setState('RACE');
     this.screens.onRaceStart(this.session);   // レース曲を流す
+    // レースで初めて使う物（リング・火花・キャラ）の描き方を、カウントダウン中に準備しておく。
+    // しないと、空中ルートのリングなどが初めて画面に入った瞬間に、レース中に引っかかる
+    this.precompile();
     const ch = CHARACTERS[playerCharIndex];
     this.debug.log(ch.name + '（' + ch.type + '）でスタート');
+  }
+
+  // 画面に映っていない物も含めて、全部の描き方（シェーダー）と画像を準備する
+  precompile() {
+    // 今は隠している物（太陽の光の筋など）も準備の対象にするため、一時的に全部を表示扱いにする
+    const hidden = [];
+    this.scene.traverse((obj) => {
+      if (!obj.visible) {
+        hidden.push(obj);
+        obj.visible = true;
+      }
+    });
+    try {
+      // compileAsync は「準備が本当に終わるまで」裏で待つ版（端末が裏で並行して準備できる）。
+      // ない場合は普通の compile を使う
+      if (this.renderer.compileAsync) {
+        this.renderer.compileAsync(this.scene, this.camera)
+          .then(() => this.finishPrograms())
+          .catch(() => {});
+      } else {
+        this.renderer.compile(this.scene, this.camera);
+      }
+      // 画像（模様・ドット絵）も、初めて映った瞬間ではなく今のうちに送っておく
+      const done = new Set();
+      this.scene.traverse((obj) => {
+        const list = Array.isArray(obj.material) ? obj.material : (obj.material ? [obj.material] : []);
+        for (const m of list) {
+          if (m.map && !done.has(m.map)) {
+            done.add(m.map);
+            this.renderer.initTexture(m.map);
+          }
+        }
+      });
+    } catch (e) {
+      // 準備に失敗しても、映ったときに準備されるだけなので、ゲームは続ける
+      console.warn('描き方の事前準備に失敗:', e);
+    }
+    for (const obj of hidden) obj.visible = false;
+  }
+
+  // 準備できた描き方の「中身の確認」まで今のうちに済ませる。
+  // three.js は初めて使う瞬間にこれを行うので、レース中の小さな引っかかりの原因になる
+  finishPrograms() {
+    for (const program of this.renderer.info.programs) {
+      try {
+        program.getUniforms();
+        program.getAttributes();
+      } catch (e) {
+        // 確認できなくても、使う瞬間に確認されるだけ
+      }
+    }
   }
 
   // ---- 状態の切り替え ----
@@ -159,6 +215,9 @@ export class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // 描画回数などの数え方：仕上げ処理で何回も描くので、1フレーム分をまとめて数える
     this.renderer.info.autoReset = false;
+    // 描き方（シェーダー）の間違い確認を止める。開発用の確認で、初めて使う瞬間に処理が止まり、
+    // レース中の引っかかりの原因になるため（このゲームの描き方は確認済み）
+    this.renderer.debug.checkShaderErrors = false;
     this.container.appendChild(this.renderer.domElement);
   }
 
