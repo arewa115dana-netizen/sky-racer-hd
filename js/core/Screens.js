@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : 画面の流れの管理。タイトル → キャラ選択 → レース、と一時停止メニュー。
                設定（音量・省電力・仕上げ処理・デバッグ表示）と、選んだキャラをスマホに保存して反映する
-  バージョン : 0.9.3（Phase9 Step9-3）
+  バージョン : 0.10.1（Phase10 Step10-1）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -121,9 +121,7 @@ export class Screens {
         g.startRace(index);
       },
       onBack: () => this.showTitle(),
-      onSound: (name) => {
-        if (name === 'decide') g.audio.play('ring');
-      }
+      onSound: (name) => g.audio.play(name)   // 'select'（選ぶ）・'decide'（決定）
     });
   }
 
