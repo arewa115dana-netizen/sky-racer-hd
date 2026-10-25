@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.2.6（Phase2 Step2-6）
+  バージョン : 0.2.7（Phase2 Step2-7）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.2.6',
+  VERSION: '0.2.7',
 
   // ゲームループ
   loop: {
@@ -18,13 +18,35 @@ export const CONFIG = {
 
   // 描画
   render: {
-    maxPixelRatio: 1.5,  // 描画解像度の上限（端末の画素密度の何倍まで使うか）
     fov: 65,             // カメラの画角（度）
     near: 0.1,           // カメラが描く一番近い距離（メートル）
     far: 400,            // カメラが描く一番遠い距離（メートル）
     skyColor: 0x8ec5ff,  // 空の色
     fogNear: 40,         // フォグが始まる距離
     fogFar: 220          // フォグで完全に見えなくなる距離
+  },
+
+  // 画質（描画解像度は「端末の画素密度」と下の上限の小さい方）
+  quality: {
+    ratioHigh: 1.5,      // 画質high（PC）の描画解像度の上限
+    ratioMid: 1.25,      // 画質mid（性能の高いスマホ）の上限
+    ratioLow: 1.0,       // 画質low（それ以外のスマホ）の上限
+    minScale: 0.6,       // 自動調整で下げる解像度の下限（元の60%まで）
+    downFps: 50,         // 平均FPSがこれを下回ったら解像度を下げる
+    upFps: 57,           // 平均FPSがこれ以上の状態が続いたら解像度を戻す
+    sampleSeconds: 2,    // 何秒ごとに平均FPSを判定するか
+    upHoldSeconds: 4,    // 余裕のある状態が何秒続いたら戻すか
+    stepDown: 0.1,       // 1回に下げる割合
+    stepUp: 0.05,        // 1回に戻す割合
+    powerSave: false,    // 省電力モード（30FPS）で始めるか
+    powerSaveFps: 30     // 省電力モードの描画回数（1秒あたり）
+  },
+
+  // サウンド
+  audio: {
+    masterVolume: 0.6,   // 全体の音量（0〜1）
+    engineVolume: 0.08,  // エンジン音の大きさ
+    sfxVolume: 0.5       // 効果音の大きさ
   },
 
   // 入力
