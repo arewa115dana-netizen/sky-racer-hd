@@ -3,13 +3,14 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.10.1（Phase10 Step10-1）
+  バージョン : 0.10.2（Phase10 Step10-2）
   メモ       : ずっと鳴る音（エンジン音・ドリフト音）はここで作る。
-               1回だけ鳴る効果音のレシピは Sfx.js にまとめてある。BGMは Phase10 の続きで追加する
+               1回だけ鳴る効果音のレシピは Sfx.js、BGMの楽譜と演奏は Music.js にまとめてある
 */
 
 import { CONFIG } from '../config.js';
 import { SFX } from './Sfx.js';
+import { Music } from './Music.js';
 
 export class AudioManager {
   constructor() {
@@ -27,6 +28,11 @@ export class AudioManager {
     this.driftGain = null;
     this.driftFilter = null;
     this.driftLevel = -2;   // 前回の段階（変わったときだけ音を変える）
+
+    // BGM（音を使えるようになってから作る。それまでは「流したい曲」だけ覚えておく）
+    this.music = null;
+    this.wantedMusic = null;
+    this.musicVolume = CONFIG.audio.musicVolume;
 
     // アプリを裏に回したら音を止める
     document.addEventListener('visibilitychange', () => {
@@ -53,6 +59,9 @@ export class AudioManager {
       this.master.connect(this.ctx.destination);
       this.startEngine();
       this.startDrift();
+      this.music = new Music(this.ctx, this.master);
+      this.music.setVolume(this.musicVolume);
+      if (this.wantedMusic) this.music.play(this.wantedMusic);
       this.unlocked = true;
     }
     if (this.isRunning() || this.paused) return;
@@ -173,7 +182,26 @@ export class AudioManager {
     if (recipe) recipe(this.ctx, this.master, CONFIG.audio.sfxVolume);
   }
 
-  // BGM（Phase10で追加）
-  startBGM() {}
-  stopBGM() {}
+  // ---- BGM（楽譜と演奏は Music.js） ----
+  // 曲を流す（'title' / 'race'）。音を使えるようになる前に呼ばれたら、使えるようになった瞬間に流す
+  playMusic(name) {
+    this.wantedMusic = name;
+    if (this.music) this.music.play(name);
+  }
+
+  stopMusic(fade) {
+    this.wantedMusic = null;
+    if (this.music) this.music.stop(fade);
+  }
+
+  // テンポを変える（最終周で速くする）
+  setMusicTempo(scale) {
+    if (this.music) this.music.setTempoScale(scale);
+  }
+
+  // BGMの音量（0〜1）
+  setMusicVolume(v) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    if (this.music) this.music.setVolume(this.musicVolume);
+  }
 }
