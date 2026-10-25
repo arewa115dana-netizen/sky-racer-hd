@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.7.2（Phase7 Step7-2）
+  バージョン : 0.9.4（Phase9 Step9-4）
 */
 
 import { CONFIG } from '../config.js';
@@ -29,7 +29,9 @@ export class RaceSession {
    * @param {AudioManager} o.audio
    * @param {Debug} o.debug
    * @param {number} o.playerCharIndex プレイヤーのキャラクター番号（0〜5）
-   * @param {function} o.onRetry 結果表の「もう一度」が押されたときに呼ぶ関数
+   * @param {function} o.onRetry  結果画面の「もう一度」が押されたときに呼ぶ関数
+   * @param {function} o.onSelect 結果画面の「キャラ選択」が押されたときに呼ぶ関数
+   * @param {function} o.onTitle  結果画面の「タイトル」が押されたときに呼ぶ関数
    */
   constructor(o) {
     this.scene = o.scene;
@@ -40,6 +42,8 @@ export class RaceSession {
     this.audio = o.audio;
     this.debug = o.debug;
     this.onRetry = o.onRetry || null;
+    this.onSelect = o.onSelect || null;
+    this.onTitle = o.onTitle || null;
 
     this.racers = [];    // 全レーサー（プレイヤーを含む6人）
     this.sprites = [];   // racers と同じ順番の見た目
@@ -263,19 +267,26 @@ export class RaceSession {
     }
   }
 
-  // 結果表を出す（ゴールしていない人は「記録なし」で、走った距離の順）
+  // 結果画面を出す（ゴールしていない人は「記録なし」で、走った距離の順）
   showResults() {
     this.resultsShown = true;
     const ranking = this.race.getRanking();
     const rows = ranking.map((racer, i) => ({
       rank: i + 1,
       name: racer.character.name,
+      charIndex: CHARACTERS.indexOf(racer.character),
       time: this.race.finishTimeOf(racer),
       isPlayer: racer.isPlayer
     }));
     this.hud.hideBanner();
-    this.hud.showResults(rows, () => {
-      if (this.onRetry) this.onRetry();
+    const call = (fn) => () => { if (fn) fn(); };
+    this.hud.showResults({
+      rows,
+      atlasCanvas: this.atlas.texture.image,
+      best: updateBestTime(this.race.finishTimeOf(this.player), this.player.character),
+      onRetry: call(this.onRetry),
+      onSelect: call(this.onSelect),
+      onTitle: call(this.onTitle)
     });
   }
 
@@ -400,4 +411,31 @@ const AREA_NAMES = {
 // 数値を符号付き小数2桁の文字にする
 function fmt(v) {
   return (v >= 0 ? '+' : '') + v.toFixed(2);
+}
+
+// ---- 自己ベスト（このコースでの一番速いタイム。スマホに保存） ----
+// 保存できない環境でも、その回の結果は出せるようにする
+const BEST_KEY = 'skyRacer.best.skyTemple';
+
+function updateBestTime(time, character) {
+  let best = null;
+  try {
+    best = JSON.parse(window.localStorage.getItem(BEST_KEY) || 'null');
+  } catch (e) {
+    best = null;
+  }
+  const valid = best && typeof best.time === 'number';
+  if (time === null) {
+    return valid ? { time: best.time, name: best.name, isNew: false } : null;
+  }
+  if (valid && best.time <= time) {
+    return { time: best.time, name: best.name, isNew: false };
+  }
+  const record = { time, name: character.name };
+  try {
+    window.localStorage.setItem(BEST_KEY, JSON.stringify(record));
+  } catch (e) {
+    // 保存できなくても、今回の記録として表示はする
+  }
+  return { time, name: character.name, isNew: true };
 }
