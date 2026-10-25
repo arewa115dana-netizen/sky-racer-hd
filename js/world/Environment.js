@@ -6,7 +6,7 @@
                遺跡と神殿の建物は Buildings.js、本殿・かがり火・旗・ツタ・浮かぶ瓦礫は Landmarks.js が作る
                スマホで軽く動くよう、重い後処理を使わず「見た目だけ再現」する
                （ぼかした遠景で被写界深度風、光る板で軽量ブルーム風）
-  バージョン : 0.8.7（Phase8 Step8-7）
+  バージョン : 0.11.2（Phase11 Step11-2）
 */
 
 import * as THREE from 'three';
@@ -47,7 +47,30 @@ export class Environment {
     this.landmarks = buildLandmarks(track, buildings.anchors, quality.level);
     scene.add(this.landmarks.group);
     // 草木（浮遊島の上と、コースの路肩）
-    scene.add(buildDecor(track, this.islandSpots, quality.level));
+    this.decor = buildDecor(track, this.islandSpots, quality.level);
+    scene.add(this.decor);
+  }
+
+  // ---- 自動軽量化（重い端末で、Game.js から1段ずつ呼ばれる）。減らした物があれば true ----
+  //   'smallDecor' … 草・花・茂みを隠す（木は残す）
+  //   'clouds'     … 下の雲の層を隠す（画面いっぱいの半透明の板なので、描く手間が大きい）
+  reduce(kind) {
+    let changed = false;
+    if (kind === 'smallDecor') {
+      for (const mesh of this.decor.children) {
+        if (mesh.userData.small && mesh.visible) {
+          mesh.visible = false;
+          changed = true;
+        }
+      }
+    } else if (kind === 'clouds') {
+      const lower = this.cloudLayers[1];
+      if (lower && lower.visible) {
+        lower.visible = false;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   // 毎フレーム呼ぶ（カメラを動かした後）
