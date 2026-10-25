@@ -3,8 +3,8 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.2.7（Phase2 Step2-7）
-  メモ       : このステップではエンジン音とブースト音のみ（音が鳴るかの確認用）。
+  バージョン : 0.6.2（Phase6 Step6-2）
+  メモ       : エンジン音・ブースト音・リング音。
                BGMと他の効果音はPhase10で追加する
 */
 
@@ -110,7 +110,29 @@ export class AudioManager {
     if (!this.unlocked || this.paused) return;
     if (name === 'boost') {
       this.playBoost();
+    } else if (name === 'ring') {
+      this.playRing();
     }
+  }
+
+  // リング音：高い音が2つ続く「ピロン」
+  playRing() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const vol = CONFIG.audio.sfxVolume * 0.6;
+    [[880, 0], [1320, 0.07]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, now + delay);
+      gain.gain.exponentialRampToValueAtTime(vol, now + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.18);
+      osc.connect(gain);
+      gain.connect(this.master);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.2);
+    });
   }
 
   // ブースト音：音程が駆け上がる「シュワーン」
