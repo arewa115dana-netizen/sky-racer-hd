@@ -2,10 +2,11 @@
 <!--
   ファイル名 : index.html
   保存場所   : / （リポジトリのいちばん上）
-  役割       : ゲームの入口。画面の土台、Three.jsの読み込み設定、エラー表示の準備
-  バージョン : 0.1.0（Phase1 動作確認版）
+  役割       : ゲームの入口。画面の土台、Three.jsの読み込み設定、
+               エラー表示の準備、更新を確実に反映する仕組み（sw.js）の登録
+  バージョン : 0.2.3（Phase2 Step2-3）
 -->
-<html lang="ja" data-version="0.1.0">
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -15,6 +16,14 @@
   <meta name="theme-color" content="#0b1530">
   <title>Sky Racer HD</title>
   <link rel="stylesheet" href="css/style.css">
+
+  <!-- 更新を確実に反映する仕組みが働いているときは、バージョン番号の後ろに緑の ● を出す -->
+  <style>
+    html[data-sw="on"] #version::after {
+      content: " ●";
+      color: #7cfc7c;
+    }
+  </style>
 
   <!-- エラーを画面に表示する仕組み（ゲーム本体より先に動かす） -->
   <script>
@@ -53,6 +62,20 @@
     })();
   </script>
 
+  <!-- 更新を確実に反映する仕組み（sw.js）を登録する -->
+  <script>
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      if (navigator.serviceWorker.controller) {
+        document.documentElement.setAttribute('data-sw', 'on');
+      }
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
+        // 登録できなくてもゲームは動くので、エラー表示はしない
+        console.warn('sw.js の登録に失敗:', err);
+      });
+    })();
+  </script>
+
   <!-- Three.js の読み込み設定（バージョン固定：0.184.0） -->
   <script type="importmap">
     {
@@ -70,7 +93,7 @@
     <div id="info">起動中...</div>
   </div>
 
-  <div id="version">v0.1.0</div>
+  <div id="version"></div>
 
   <div id="rotate">
     <div class="rotate-box">
