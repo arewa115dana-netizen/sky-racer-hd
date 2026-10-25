@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.4.2（Phase4 Step4-2）
+  バージョン : 0.5.1（Phase5 Step5-1）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.4.2',
+  VERSION: '0.5.1',
 
   // ゲームループ
   loop: {
@@ -119,6 +119,8 @@ export const CONFIG = {
   // レース
   race: {
     racerCount: 6,       // レーサーの人数（プレイヤー含む）
+    laps: 3,             // 周回数
+    countdownTime: 3,    // カウントダウンの長さ（秒）
     playerGridSlot: 3,   // プレイヤーのスタート位置（0 = 先頭。3 = 4番手）
     gridFront: 6,        // 先頭がスタートラインの何メートル後ろに並ぶか
     gridRowGap: 7,       // 列と列の間隔（メートル）
