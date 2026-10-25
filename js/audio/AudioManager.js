@@ -3,8 +3,8 @@
   保存場所   : /js/audio
   役割       : サウンドの管理。音声ファイルは使わず、Web Audio で音を合成する。
                iPhoneは最初のタッチまで音を出せないため、最初のタッチで有効化する
-  バージョン : 0.6.2（Phase6 Step6-2）
-  メモ       : エンジン音・ブースト音・リング音。
+  バージョン : 0.7.2（Phase7 Step7-2）
+  メモ       : エンジン音・ブースト音・リング音・ドリフト音・ミニターボ音。
                BGMと他の効果音はPhase10で追加する
 */
 
@@ -21,6 +21,11 @@ export class AudioManager {
     this.engineOsc = null;
     this.engineGain = null;
     this.engineFilter = null;
+
+    // ドリフト音（ザラザラした音を、ドリフト中だけ大きくする）
+    this.driftGain = null;
+    this.driftFilter = null;
+    this.driftLevel = -2;   // 前回の段階（変わったときだけ音を変える）
 
     // アプリを裏に回したら音を止める
     document.addEventListener('visibilitychange', () => {
@@ -55,6 +60,7 @@ export class AudioManager {
     }
 
     this.startEngine();
+    this.startDrift();
     this.unlocked = true;
   }
 
@@ -105,6 +111,48 @@ export class AudioManager {
     this.engineGain.gain.setTargetAtTime(CONFIG.audio.engineVolume * (0.4 + r * 0.6), now, 0.1);
   }
 
+  // ---- ドリフト音 ----
+  // 1秒分のザラザラした音（ノイズ）を作り、くり返し鳴らし続ける。最初は音量0
+  startDrift() {
+    const ctx = this.ctx;
+    const length = ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i += 1) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+
+    this.driftFilter = ctx.createBiquadFilter();
+    this.driftFilter.type = 'bandpass';
+    this.driftFilter.frequency.value = 1500;
+    this.driftFilter.Q.value = 1.5;
+
+    this.driftGain = ctx.createGain();
+    this.driftGain.gain.value = 0;
+
+    src.connect(this.driftFilter);
+    this.driftFilter.connect(this.driftGain);
+    this.driftGain.connect(this.master);
+    src.start();
+  }
+
+  // ドリフトの段階に合わせて音を変える（level: -1 = していない、0 = 溜め中、1 = 青、2 = オレンジ）
+  setDrift(level) {
+    if (!this.driftGain || level === this.driftLevel) return;
+    this.driftLevel = level;
+    const now = this.ctx.currentTime;
+    if (level < 0) {
+      this.driftGain.gain.setTargetAtTime(0, now, 0.05);
+      return;
+    }
+    // 段階が上がるほど高い音に
+    this.driftFilter.frequency.setTargetAtTime([1500, 2600, 4000][level], now, 0.05);
+    this.driftGain.gain.setTargetAtTime(CONFIG.audio.driftVolume, now, 0.04);
+  }
+
   // ---- 効果音 ----
   play(name) {
     if (!this.unlocked || this.paused) return;
@@ -112,7 +160,27 @@ export class AudioManager {
       this.playBoost();
     } else if (name === 'ring') {
       this.playRing();
+    } else if (name === 'turbo') {
+      this.playTurbo();
     }
+  }
+
+  // ミニターボ音：短い「パシュッ」（ブースト音と重なって鳴る）
+  playTurbo() {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(CONFIG.audio.sfxVolume * 0.35, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    osc.connect(gain);
+    gain.connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.17);
   }
 
   // リング音：高い音が2つ続く「ピロン」
