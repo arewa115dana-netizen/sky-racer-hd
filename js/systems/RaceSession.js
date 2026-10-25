@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.11.1（Phase11 Step11-1）
+  バージョン : 1.0.0（Phase12 Step12-3：難しさでCPUの速さを変える）
 */
 
 import { CONFIG } from '../config.js';
@@ -318,14 +318,15 @@ export class RaceSession {
     });
   }
 
-  // CPUの追い上げ補正：前にいるCPUは少し遅く、後ろにいるCPUは少し速く
+  // CPUの追い上げ補正：前にいるCPUは少し遅く、後ろにいるCPUは少し速く。難しさで全体の速さも変わる
   updateRubberBand() {
     const rb = CONFIG.rubberBand;
     for (const racer of this.racers) {
       if (racer.isPlayer) continue;
       const gap = racer.distance - this.player.distance;
       const ratio = Math.min(1, Math.abs(gap) / rb.range);
-      racer.speedScale = gap > 0 ? 1 - ratio * rb.maxSlow : 1 + ratio * rb.maxFast;
+      // cpuSpeed は難しさによる最高速の倍率（ふつう = 1）
+      racer.speedScale = (gap > 0 ? 1 - ratio * rb.maxSlow : 1 + ratio * rb.maxFast) * (rb.cpuSpeed || 1);
     }
   }
 
