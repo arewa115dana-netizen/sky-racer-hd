@@ -3,14 +3,15 @@
   保存場所   : /js/art
   役割       : 文字で書いたドット絵データから、全キャラクター・全コマを
                1枚の画像（テクスチャアトラス）にまとめて作る。画像ファイルは使わない
-  バージョン : 0.8.1（Phase8 Step8-1）
+  バージョン : 0.8.2（Phase8 Step8-2）
 
   しくみ
     ・全キャラ共通の体型（24×24マス）を持ち、色だけキャラごとに変える
+    ・1コマは32×32マス。体の絵を下寄せ・中央に置き、空いた所に
+      キャラ別の小物（Parts.js：帽子・羽・盾など）を重ねる
     ・向きは5種類：後ろ・斜め後ろ・横・斜め前・正面。
       斜めと横は「右を向いた絵」だけ描き、左向きは左右反転して使う（getFrame の flip）
-    ・後ろ姿だけは、上半身をずらして左右に傾いた絵も自動で作る
-    ・帽子や羽などのキャラ別の小物は Step8-2 で追加する
+    ・後ろ姿だけは、上半身をずらして左右に傾いた絵も自動で作る（小物ごと傾く）
 
   ドット絵の文字の意味
     .  透明        k  ふち（濃い色）
@@ -21,10 +22,14 @@
 */
 
 import * as THREE from 'three';
+import { PARTS } from './Parts.js';
 
-const CELL = 24;                       // 1コマのマス数（縦横）
+const BODY = 24;                       // 体の絵のマス数（縦横）
+const CELL = 32;                       // 1コマのマス数（縦横）。小物がはみ出せるよう体より大きい
+const BODY_X = (CELL - BODY) / 2;      // 体の絵を置く位置（左から4マス）
+const BODY_Y = CELL - BODY;            // 体の絵を置く位置（上から8マス。下寄せ）
 const FRAMES = ['back', 'left', 'right', 'backDiag', 'side', 'frontDiag', 'front'];
-const BOARD_TOP_ROW = 19;              // この行より下（ボード）は傾けない
+const BOARD_TOP_ROW = 19 + BODY_Y;     // この行より下（ボード）は傾けない
 const LEAN_AMOUNT = 0.25;              // 傾いた絵で、1行上がるごとに何マスずらすか
 
 // 後ろ姿（ボードに乗ったキャラクターを後ろから見た絵）。必ず24文字×24行
@@ -199,20 +204,21 @@ export function buildAtlas(characters) {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, width, height);
 
-  // コマ（左・右）を後ろ姿から作り、向き別の絵と並べる
-  const frameData = {
-    back: BACK,
-    left: lean(BACK, -1),
-    right: lean(BACK, 1),
-    backDiag: BACK_DIAG,
-    side: SIDE,
-    frontDiag: FRONT_DIAG,
-    front: FRONT
-  };
-
   // キャラクターごとに1行、コマごとに1列で描く
   characters.forEach((ch, row) => {
-    const colors = makeColors(ch.palette);
+    const parts = PARTS[ch.id] || null;
+    const colors = makeColors(ch.palette, parts);
+    // 体の絵に小物を重ねる
+    const back = compose(BACK, parts, 'back');
+    const frameData = {
+      back,
+      left: lean(back, -1),     // 傾いた絵は、小物を重ねた後ろ姿から作る
+      right: lean(back, 1),
+      backDiag: compose(BACK_DIAG, parts, 'backDiag'),
+      side: compose(SIDE, parts, 'side'),
+      frontDiag: compose(FRONT_DIAG, parts, 'frontDiag'),
+      front: compose(FRONT, parts, 'front')
+    };
     FRAMES.forEach((frameName, col) => {
       drawPixels(ctx, frameData[frameName], colors, col * CELL, row * CELL);
     });
@@ -270,9 +276,43 @@ export function buildAtlas(characters) {
 
 // ---- 内部で使う関数 ----
 
-// キャラクターの配色から、文字→色の表を作る
-function makeColors(palette) {
+// 体の絵（24×24）を32×32の中に置き、小物を重ねた絵（文字の行の並び）を作る
+function compose(body, parts, viewName) {
+  const grid = [];
+  for (let y = 0; y < CELL; y += 1) {
+    grid.push(new Array(CELL).fill('.'));
+  }
+  body.forEach((line, y) => {
+    for (let x = 0; x < line.length; x += 1) {
+      grid[y + BODY_Y][x + BODY_X] = line[x];
+    }
+  });
+
+  const stamps = parts && parts[viewName] ? parts[viewName] : [];
+  for (const [top, left, rows, layer] of stamps) {
+    rows.forEach((line, dy) => {
+      for (let dx = 0; dx < line.length; dx += 1) {
+        const key = line[dx];
+        if (key === '.') continue;
+        const y = top + dy;
+        const x = left + dx;
+        if (y < 0 || y >= CELL || x < 0 || x >= CELL) {
+          throw new Error('小物の絵がはみ出しています（' + viewName + '、' + y + '行 ' + x + '列）');
+        }
+        // 'under' は体の後ろ：体が描かれていない所だけ塗る
+        if (layer === 'under' && grid[y][x] !== '.') continue;
+        grid[y][x] = key;
+      }
+    });
+  }
+  return grid.map((cells) => cells.join(''));
+}
+
+// キャラクターの配色から、文字→色の表を作る（小物の色も加える）
+function makeColors(palette, parts) {
+  const extra = parts && parts.colors ? parts.colors : {};
   return {
+    ...extra,
     k: COMMON_COLORS.k,
     b: COMMON_COLORS.b,
     n: COMMON_COLORS.n,
@@ -343,9 +383,9 @@ function nextPowerOfTwo(n) {
 // ドット絵データの形が正しいか確かめる（間違っていれば画面に知らせる）
 function checkTemplate(rows, name) {
   const bad = [];
-  if (rows.length !== CELL) bad.push('行数が' + rows.length);
+  if (rows.length !== BODY) bad.push('行数が' + rows.length);
   rows.forEach((line, i) => {
-    if (line.length !== CELL) bad.push((i + 1) + '行目が' + line.length + '文字');
+    if (line.length !== BODY) bad.push((i + 1) + '行目が' + line.length + '文字');
   });
   if (bad.length > 0) {
     throw new Error('ドット絵データ「' + name + '」の形が違います（' + bad.join('、') + '）');
