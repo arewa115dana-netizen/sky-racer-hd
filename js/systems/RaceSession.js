@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.9.4b（Phase9 Step9-4 修正）
+  バージョン : 0.10.1（Phase10 Step10-1）
 */
 
 import { CONFIG } from '../config.js';
@@ -51,6 +51,7 @@ export class RaceSession {
     this.player = null;
     this.playerSprite = null;
     this.playerBumps = 0;
+    this.bumpSoundWait = 0;   // ぶつかる音を続けて鳴らしすぎないための待ち時間
     this.lastBoostTime = 0;
     this.hudView = { rank: 0, total: 0, lap: 1, laps: 3, time: 0, gauge: 0, countdown: null, drift: -1 };
     this.playerTurbos = 0;
@@ -125,11 +126,13 @@ export class RaceSession {
     }
   }
 
-  // ---- レースの合図に合わせて画面にお知らせを出す ----
+  // ---- レースの合図に合わせて、画面にお知らせを出し、効果音を鳴らす ----
   setupRaceEvents() {
     const race = this.race;
+    race.on('count', () => this.audio.play('count'));
     race.on('go', () => {
       const r = CONFIG.race;
+      this.audio.play('go');
       if (this.dashState === 'ready') {
         this.player.startBoost(r.startDashTime);
         this.hud.showBanner('ダッシュ！', 1.0, 'go');
@@ -153,17 +156,20 @@ export class RaceSession {
     race.on('lap', (racer, lap) => {
       if (racer.isPlayer && lap < race.laps) {
         this.hud.showBanner('LAP ' + lap, 1.5);
+        this.audio.play('lap');   // 最終周に入るときはここに来ず、finalLap の音が鳴る
       }
     });
     race.on('finalLap', (racer) => {
       if (racer.isPlayer) {
         this.hud.showBanner('FINAL LAP', 2.0, 'final');
+        this.audio.play('finalLap');
       }
     });
     race.on('finish', (racer, rank) => {
       this.debug.log(racer.character.name + ' ゴール ' + rank + '位');
       if (racer.isPlayer) {
         this.hud.showBanner('GOAL!  ' + rank + '位', 0, 'goal');
+        this.audio.play('goal');
         // ゴール後はCPUと同じ思考で自動で走らせる
         const index = this.racers.indexOf(racer);
         this.ais[index] = new AIController(racer, this.track, { lineOffset: 0, skill: 0.9, seed: 1 });
@@ -191,7 +197,14 @@ export class RaceSession {
       // レーサー同士の押し合い
       const wasBumped = player.bumped;
       resolveCollisions(this.racers, this.track);
-      if (player.bumped && !wasBumped) this.playerBumps += 1;
+      this.bumpSoundWait = Math.max(0, this.bumpSoundWait - dt);
+      if (player.bumped && !wasBumped) {
+        this.playerBumps += 1;
+        if (this.bumpSoundWait <= 0) {
+          this.audio.play('bump');
+          this.bumpSoundWait = CONFIG.audio.bumpSoundInterval;
+        }
+      }
 
       // リングを通り抜けたか
       for (const racer of this.racers) {
@@ -223,8 +236,12 @@ export class RaceSession {
       }
     }
 
+    // コースから落ちたとき・復帰したときの音
     if (!wasRespawning && player.state === 'respawn') {
       this.debug.log('コースアウト！');
+      this.audio.play('fall');
+    } else if (wasRespawning && player.state !== 'respawn') {
+      this.audio.play('respawn');
     }
 
     // ミニターボ：火花をパッと散らす。自分なら音を鳴らして数える（デバッグ表示用）
