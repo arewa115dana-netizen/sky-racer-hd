@@ -3,9 +3,10 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.9.1b（Phase9 Step9-1 修正）
+  バージョン : 0.9.2（Phase9 Step9-2）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
-               画面の流れ：タイトル（Title.js）→ レース。キャラ選択・設定は Phase9 の続きで追加する
+               画面の流れ：タイトル（Title.js）→ キャラ選択（CharacterSelect.js）→ レース。
+               設定は Phase9 の続きで追加する
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え、
                F で仕上げ処理（ティルトシフト・ブルーム・色づくり）の ON / OFF
 */
@@ -28,6 +29,7 @@ import { Atmosphere } from '../render/Atmosphere.js';
 import { PostFX } from '../render/PostFX.js';
 import { RaceSession } from '../systems/RaceSession.js';
 import { Title } from '../ui/Title.js';
+import { CharacterSelect } from '../ui/CharacterSelect.js';
 
 export class Game {
   constructor(container) {
@@ -50,7 +52,7 @@ export class Game {
     this.postfx = null;        // 画面全体の仕上げ（ティルトシフト・ブルーム・色づくり）
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
-    this.playerCharIndex = 0;  // プレイヤーのキャラクター番号
+    this.playerCharIndex = loadCharIndex();  // プレイヤーのキャラクター番号（前回選んだキャラ）
     this.title = null;         // タイトル画面（表示中だけ）
     this.titleTime = 0;        // タイトルの背景でカメラが飛んだ時間
     this.titleLook = new THREE.Vector3();
@@ -118,11 +120,11 @@ export class Game {
     if (this.session) {
       this.session.dispose();
       this.session = null;
+      this.titleTime = 0;   // レースから戻ったときは、背景のカメラを最初から
     }
     this.input.setEnabled(false);
     document.body.classList.add('in-menu');   // 操作部品を隠す（style.css）
     this.debug.setVisible(false);
-    this.titleTime = 0;
     this.setState('TITLE');
     this.title = new Title(() => this.onTitleStart());
   }
@@ -132,9 +134,34 @@ export class Game {
     this.title = null;
     // タップ（指を離した瞬間）の中で、もう一度確実に音を再開する
     this.audio.unlock();
-    document.body.classList.remove('in-menu');
-    this.debug.setVisible(CONFIG.debug.show);
-    this.startRace(this.playerCharIndex);
+    this.showCharacterSelect();
+  }
+
+  // ---- キャラクター選択画面を出す（背景はタイトルと同じく、コースを飛ぶカメラ） ----
+  showCharacterSelect() {
+    if (this.session) {
+      this.session.dispose();
+      this.session = null;
+    }
+    this.input.setEnabled(false);
+    document.body.classList.add('in-menu');
+    this.debug.setVisible(false);
+    this.setState('SELECT');
+    new CharacterSelect({
+      characters: CHARACTERS,
+      atlasCanvas: this.atlas.texture.image,
+      index: this.playerCharIndex,
+      onDecide: (index) => {
+        saveCharIndex(index);
+        document.body.classList.remove('in-menu');
+        this.debug.setVisible(CONFIG.debug.show);
+        this.startRace(index);
+      },
+      onBack: () => this.showTitle(),
+      onSound: (name) => {
+        if (name === 'decide') this.audio.play('ring');
+      }
+    });
   }
 
   // タイトルの背景：カメラがコースの上をゆっくり飛び、少し先を見る
@@ -289,7 +316,7 @@ export class Game {
   render(alpha, frameTime) {
     if (this.state === 'RACE' && this.session) {
       this.session.render(alpha, frameTime, this.environment, this.loop.paused);
-    } else if (this.state === 'TITLE' && !this.loop.paused) {
+    } else if ((this.state === 'TITLE' || this.state === 'SELECT') && !this.loop.paused) {
       this.updateTitleCamera(frameTime);
     }
     // 空気感の演出（カメラを動かした後に。一時停止中は止める）
@@ -328,5 +355,26 @@ export class Game {
       pixelRatio: this.quality.pixelRatio,
       lines
     });
+  }
+}
+
+// ---- 選んだキャラの保存（次に開いたときも同じキャラから） ----
+// 保存できない環境（プライベートモードなど）でも動くよう、失敗は無視する
+const CHAR_KEY = 'skyRacer.character';
+
+function loadCharIndex() {
+  try {
+    const v = Number(window.localStorage.getItem(CHAR_KEY));
+    return Number.isInteger(v) && v >= 0 && v < CHARACTERS.length ? v : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function saveCharIndex(index) {
+  try {
+    window.localStorage.setItem(CHAR_KEY, String(index));
+  } catch (e) {
+    // 保存できなくても遊べるので何もしない
   }
 }
