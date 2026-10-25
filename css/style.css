@@ -3,10 +3,10 @@
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.9.2b（Phase9 Step9-2 修正）
+  バージョン : 0.9.3（Phase9 Step9-3）
 
   重なり順（z-index。大きいほど手前）
-    エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・結果 40 / バージョン 30 /
+    エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
     操作部品 20 / HUD 15 / デバッグ 10 / 周辺減光 5
 */
 
@@ -743,4 +743,149 @@ body.in-menu #touch-ui {
 .cs-decide:active {
   transform: translateY(3px);
   box-shadow: 0 1px 0 #0b1530;
+}
+
+/* ---- 一時停止メニューと設定 ---- */
+#menu {
+  cursor: default;
+  background: rgba(8, 14, 36, 0.62);
+  animation: title-in 0.2s ease both;
+}
+
+/* 中身の箱。画面が小さいときは箱ごと縮める（Menu.js の fit） */
+.menu-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 460px;
+  padding: 18px 22px;
+  box-sizing: border-box;
+  background: rgba(16, 28, 64, 0.92);
+  border: 3px solid #1a2a5a;
+  outline: 2px solid rgba(255, 226, 138, 0.7);
+  border-radius: 10px;
+  transform-origin: center center;
+}
+
+.menu-title {
+  font-size: 24px;
+  letter-spacing: 0.3em;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+#menu button {
+  font-family: inherit;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu-btn {
+  width: 100%;
+  min-height: 48px;
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+}
+
+.menu-btn.main {
+  min-height: 56px;
+  font-size: 22px;
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  box-shadow: 0 4px 0 #0b1530;
+}
+
+.menu-btn:active {
+  transform: translateY(2px);
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.menu-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 17px;
+}
+
+.menu-label small {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.menu-toggle {
+  flex: 0 0 auto;
+  min-width: 96px;
+  min-height: 44px;
+  font-size: 17px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-radius: 22px;
+}
+
+.menu-toggle.on {
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border-color: #ffe9a8;
+}
+
+.menu-toggle:disabled {
+  font-size: 13px;
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-step {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+}
+
+.menu-bars {
+  display: flex;
+  gap: 3px;
+}
+
+.menu-bars i {
+  width: 10px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.menu-bars i.on {
+  background: linear-gradient(#ffe28a, #f0a020);
+  border-color: #ffe9a8;
 }
