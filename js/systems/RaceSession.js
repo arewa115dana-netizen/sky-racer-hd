@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.10.3（Phase10 Step10-3）
+  バージョン : 0.11.1（Phase11 Step11-1）
 */
 
 import { CONFIG } from '../config.js';
@@ -385,7 +385,17 @@ export class RaceSession {
     sprite.shadow.visible = this.track.zoneAt(racer.s) === 'ground' && racer.state !== 'respawn';
     // 落ちきったら隠す。復帰直後は点滅させる
     const blinkOff = racer.invincibleTime > 0 && Math.floor(racer.invincibleTime * 10) % 2 === 0;
-    sprite.object3d.visible = !racer.isHidden() && !blinkOff;
+    // カメラのすぐ近く（自分とカメラの間など）にいるCPUは隠す。
+    // ドット絵が画面いっぱいに大きく映って、前が見えなくなるのを防ぐ
+    let tooClose = false;
+    if (!racer.isPlayer) {
+      const dx = racer.renderPos.x - this.camera.position.x;
+      const dy = racer.renderPos.y - this.camera.position.y;
+      const dz = racer.renderPos.z - this.camera.position.z;
+      const near = CONFIG.sprite.nearHide;
+      tooClose = dx * dx + dy * dy + dz * dz < near * near;
+    }
+    sprite.object3d.visible = !racer.isHidden() && !blinkOff && !tooClose;
   }
 
   // キャラクターの切り替え（PCの数字キーでの確認用）
