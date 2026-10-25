@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.3.1（Phase3 Step3-1）
+  バージョン : 0.3.2（Phase3 Step3-2）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.3.1',
+  VERSION: '0.3.2',
 
   // ゲームループ
   loop: {
@@ -20,10 +20,35 @@ export const CONFIG = {
   render: {
     fov: 65,             // カメラの画角（度）
     near: 0.1,           // カメラが描く一番近い距離（メートル）
-    far: 400,            // カメラが描く一番遠い距離（メートル）
-    skyColor: 0x8ec5ff,  // 空の色
-    fogNear: 40,         // フォグが始まる距離
-    fogFar: 220          // フォグで完全に見えなくなる距離
+    far: 450             // カメラが描く一番遠い距離（メートル）
+  },
+
+  // 背景（Environment が使う）
+  environment: {
+    skyTopColor: 0x3f7fd9,  // 空の真上の色
+    horizonColor: 0xd4e9fb, // 地平線の色（フォグの色も同じ）
+    fogNear: 60,            // フォグが始まる距離（メートル）
+    fogFar: 330,            // フォグで完全に見えなくなる距離
+    skyRadius: 380,         // 空の球の大きさ（カメラの far より小さくする）
+    sunDirection: { x: 0.45, y: 0.42, z: -0.79 }, // 太陽の方向
+    sunDistance: 330,       // 太陽までの距離
+    sunSize: 120,           // 太陽の光の大きさ
+    cloudHeight: -32,       // 雲海の高さ（メートル）
+    cloudSize: 2000,        // 雲海の板の大きさ
+    cloudRepeat: 7,         // 雲の画像を何回くり返すか
+    cloudSpeed: 0.004,      // 雲が流れる速さ
+    farIslandDistance: 360, // 遠景の島までの距離
+    islandCount: 26,        // 浮遊島の数（画質lowでは半分）
+    islandArea: 420,        // 浮遊島を散らす範囲（コース中心から±メートル）
+    islandClearance: 30,    // コースから最低これだけ離す（メートル）
+    grassColor: 0x7fbf5a,   // 浮遊島の草の色
+    rockColor: 0x8a7563,    // 浮遊島の岩の色
+    archSpacing: 34,        // 遺跡のアーチの間隔（メートル）
+    archHeight: 12,         // アーチの梁の高さ（飛行ルートの中心から）
+    ruinColor: 0xb7a98f,    // 遺跡の石の色
+    columnSpacing: 14,      // 神殿の柱の間隔（メートル）
+    columnHeight: 11,       // 神殿の柱の高さ
+    templeColor: 0xf3eee2   // 神殿の白い石の色
   },
 
   // 画質（描画解像度は「端末の画素密度」と下の上限の小さい方）
