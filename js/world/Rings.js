@@ -4,7 +4,7 @@
   役割       : 空中のリング。見た目を作り、レーサーが通り抜けたかを判定する
                ・青（gauge）：ブーストゲージが溜まる
                ・金（boost）：その場でブースト
-  バージョン : 0.6.2（Phase6 Step6-2）
+  バージョン : 0.6.3（Phase6 Step6-3）
 
   リングの置き方（CourseData の rings）
     { area: 'cloud', at: 0.35, x: -5, y: 7, type: 'gauge' }
@@ -55,13 +55,28 @@ export class Rings {
     const dummy = new THREE.Object3D();
     const p = {};
 
+    // 光のにじみ（軽量ブルーム風）：太くて半透明のリングを、光を足し合わせる描き方で重ねる
+    const glowGeo = new THREE.TorusGeometry(c.radius, c.glowTube, 6, 20);
+
     for (const type of ['gauge', 'boost']) {
       const items = this.list.filter((r) => r.type === type);
       if (items.length === 0) continue;
-      const material = new THREE.MeshBasicMaterial({
-        color: type === 'gauge' ? c.gaugeColor : c.boostColor
-      });
+      const color = type === 'gauge' ? c.gaugeColor : c.boostColor;
+
+      // 本体：遠くでも空の色に溶けないよう、フォグをかけない
+      const material = new THREE.MeshBasicMaterial({ color, fog: false });
       const mesh = new THREE.InstancedMesh(geo, material, items.length);
+
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: c.glowOpacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false
+      });
+      const glow = new THREE.InstancedMesh(glowGeo, glowMaterial, items.length);
+
       items.forEach((ring, k) => {
         this.track.toWorld(ring.s, ring.x, ring.y, p);
         dummy.position.set(p.x, p.y, p.z);
@@ -69,11 +84,15 @@ export class Rings {
         dummy.rotation.set(0, this.track.yawAt(ring.s), 0);
         dummy.updateMatrix();
         mesh.setMatrixAt(k, dummy.matrix);
+        glow.setMatrixAt(k, dummy.matrix);
       });
       mesh.instanceMatrix.needsUpdate = true;
-      mesh.userData.baseColor = new THREE.Color(material.color);
+      glow.instanceMatrix.needsUpdate = true;
+      mesh.userData.baseColor = new THREE.Color(color);
+      glow.userData.baseColor = new THREE.Color(color);
       this.scene.add(mesh);
-      this.meshes.push(mesh);
+      this.scene.add(glow);
+      this.meshes.push(mesh, glow);
     }
   }
 
@@ -123,9 +142,8 @@ export class Rings {
       this.scene.remove(mesh);
       mesh.material.dispose();
     }
-    if (this.meshes.length > 0) {
-      this.meshes[0].geometry.dispose();
-    }
+    const geometries = new Set(this.meshes.map((m) => m.geometry));
+    geometries.forEach((g) => g.dispose());
     this.meshes = [];
   }
 }
