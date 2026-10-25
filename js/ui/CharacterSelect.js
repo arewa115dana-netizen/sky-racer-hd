@@ -3,7 +3,7 @@
   保存場所   : /js/ui
   役割       : キャラクター選択画面。選んだキャラを大きく表示してゆっくり回し（全方向のドット絵）、
                名前・タイプ・説明・5つの能力の棒グラフを見せる。下の顔アイコンで選んで「決定」
-  バージョン : 0.9.2（Phase9 Step9-2）
+  バージョン : 0.9.2b（Phase9 Step9-2 修正：画面に収まるよう自動で縮める）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」
                PC     … ← → で選ぶ、Enter・スペースで決定、Esc でタイトルへ、数字キー 1〜6
   メモ       : ドット絵は、ゲームで使っている画像（atlas）から切り抜いて表示する（新しい画像は作らない）
@@ -70,6 +70,23 @@ export class CharacterSelect {
 
     this.onKey = (e) => this.handleKey(e);
     window.addEventListener('keydown', this.onKey);
+
+    // 画面に収まるよう縮める（スマホの横向きはアドレスバーの分だけ縦が狭い）
+    this.onResize = () => this.fit();
+    window.addEventListener('resize', this.onResize);
+    this.fit();
+  }
+
+  // 中身が画面より大きければ、収まる大きさまで縮める（小さい画面では拡大はしない）
+  fit() {
+    const inner = this.inner;
+    inner.style.transform = '';
+    const margin = CONFIG.ui.screenMargin;
+    const w = inner.offsetWidth;
+    const h = inner.offsetHeight;
+    if (!w || !h) return;
+    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - margin * 2) / h);
+    if (scale < 1) inner.style.transform = 'scale(' + scale.toFixed(3) + ')';
   }
 
   // ---- 画面を作る ----
@@ -79,6 +96,7 @@ export class CharacterSelect {
     el.className = 'screen';
     el.innerHTML =
       '<button class="cs-back" type="button">◀ タイトル</button>' +
+      '<div class="cs-inner">' +
       '<div class="cs-heading">キャラクターを選ぶ</div>' +
       '<div class="cs-main">' +
       '  <div class="cs-portrait"><canvas class="cs-big" width="32" height="32"></canvas></div>' +
@@ -94,10 +112,12 @@ export class CharacterSelect {
       '  <div class="cs-icons"></div>' +
       '  <button class="cs-arrow cs-next" type="button">▶</button>' +
       '  <button class="cs-decide" type="button">決定</button>' +
+      '</div>' +
       '</div>';
     document.body.appendChild(el);
     this.el = el;
 
+    this.inner = el.querySelector('.cs-inner');
     this.bigCanvas = el.querySelector('.cs-big');
     this.nameEl = el.querySelector('.cs-name');
     this.typeEl = el.querySelector('.cs-type');
@@ -215,6 +235,7 @@ export class CharacterSelect {
   close() {
     clearInterval(this.turnTimer);
     window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.onResize);
     this.el.classList.add('hide');
     setTimeout(() => {
       if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
