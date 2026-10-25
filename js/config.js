@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.10.1（Phase10 Step10-1）
+  バージョン : 0.10.2（Phase10 Step10-2）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.10.1',
+  VERSION: '0.10.2',
 
   // ゲームループ
   loop: {
@@ -73,7 +73,9 @@ export const CONFIG = {
     engineVolume: 0.08,  // エンジン音の大きさ
     sfxVolume: 0.5,      // 効果音の大きさ
     driftVolume: 0.12,   // ドリフトの「シャーッ」の大きさ
-    bumpSoundInterval: 0.4 // ぶつかる音を鳴らす最短の間隔（秒）。もみ合いで鳴りすぎないように
+    bumpSoundInterval: 0.4, // ぶつかる音を鳴らす最短の間隔（秒）。もみ合いで鳴りすぎないように
+    musicVolume: 0.5,    // BGMの大きさ（0〜1。設定の「BGM」で変えられる）
+    finalLapTempo: 1.12  // 最終周でBGMを何倍の速さにするか
   },
 
   // ---- 遺跡と神殿の建物（Step8-6） ----
