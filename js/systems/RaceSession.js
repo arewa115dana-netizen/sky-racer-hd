@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.5.3（Phase5 Step5-2 修正）
+  バージョン : 0.6.1（Phase6 Step6-1）
 */
 
 import { CONFIG } from '../config.js';
@@ -293,7 +293,8 @@ export class RaceSession {
     }
     return [
       '旋回 ' + fmt(input.steer) + '  上下 ' + fmt(input.pitch),
-      '速度 ' + (p.speed * 3.6).toFixed(0) + ' km/h  最高 ' + (p.maxSpeed * 3.6).toFixed(0) + ' km/h',
+      '速度 ' + (p.speed * 3.6).toFixed(0) + ' km/h  最高 ' + (p.maxSpeed * 3.6).toFixed(0) + ' km/h' +
+        '  高さ ' + fmt(p.y) + ' m',
       '位置 ' + p.s.toFixed(0) + '/' + t.length.toFixed(0) + ' m  横 ' + fmt(p.x) + '  ' +
         AREA_NAMES[t.areaAt(p.s)] + (t.zoneAt(p.s) === 'air' ? '（空中）' : ''),
       'ゲージ ' + Math.round(p.gauge * 100) + '%  ブースト残 ' + p.boostTime.toFixed(1) +
