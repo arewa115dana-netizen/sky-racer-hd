@@ -3,7 +3,7 @@
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.9.3（Phase9 Step9-3）
+  バージョン : 0.9.4（Phase9 Step9-4）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
@@ -187,28 +187,44 @@ body.is-touch #touch-ui {
   inset: 0;
   z-index: 15;
   pointer-events: none;
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-family: "DotGothic16", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   color: #ffffff;
-  text-shadow: 0 2px 0 rgba(20, 20, 50, 0.85), 0 0 6px rgba(20, 20, 50, 0.6);
+  /* 濃い紺の縁取りで、どんな背景でも読めるように（ドット絵のロゴと同じ雰囲気） */
+  text-shadow:
+    2px 0 0 #1a2a5a, -2px 0 0 #1a2a5a, 0 2px 0 #1a2a5a, 0 -2px 0 #1a2a5a,
+    2px 2px 0 #1a2a5a, -2px 2px 0 #1a2a5a, 2px -2px 0 #1a2a5a, -2px -2px 0 #1a2a5a;
 }
 
-/* 順位（上の中央） */
+/* 順位（上の中央）。1〜3位は金・銀・銅 */
 .hud-rank {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 20px);
+  top: calc(env(safe-area-inset-top) + 16px);
   left: 50%;
   transform: translateX(-50%);
-  font-weight: 800;
   white-space: nowrap;
 }
 
+.hud-rank.place1 .hud-rank-num { color: #ffd84a; }
+.hud-rank.place2 .hud-rank-num { color: #dfe8f2; }
+.hud-rank.place3 .hud-rank-num { color: #f0a868; }
+
+/* 順位が変わったときに、ポンと弾む */
+.hud-rank.bump {
+  animation: hud-bump 0.35s ease-out;
+}
+
+@keyframes hud-bump {
+  0% { transform: translateX(-50%) scale(1.35); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
 .hud-rank-num {
-  font-size: 46px;
+  font-size: 50px;
   line-height: 1;
 }
 
 .hud-rank-unit {
-  font-size: 20px;
+  font-size: 22px;
   margin-left: 2px;
 }
 
@@ -218,13 +234,16 @@ body.is-touch #touch-ui {
   opacity: 0.85;
 }
 
-/* 周回とタイム（右上。一時停止ボタンの左） */
+/* 周回とタイム（右上。一時停止ボタンの左）。うっすら暗い板の上に出す */
 .hud-lap-time {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 10px);
   right: calc(env(safe-area-inset-right) + 64px);
+  padding: 4px 12px 6px;
   text-align: right;
-  font-weight: 700;
+  background: rgba(10, 20, 50, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
 }
 
 .hud-lap {
@@ -232,47 +251,111 @@ body.is-touch #touch-ui {
 }
 
 .hud-lap-num {
-  font-size: 26px;
+  font-size: 28px;
+}
+
+/* 最終周は周回の文字をオレンジに */
+.hud-lap.final {
+  color: #ff9a6b;
 }
 
 .hud-time {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 15px;
+  font-size: 17px;
   margin-top: 2px;
+  letter-spacing: 0.04em;
 }
 
-/* ブーストゲージ（下の中央） */
+/* ドリフトの溜まり（ゲージの上。ドリフト中だけ出る） */
+.hud-drift {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 42px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.hud-drift.show {
+  opacity: 1;
+}
+
+.hud-drift i {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #1a2a5a;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.hud-drift.level1 i:nth-of-type(1) {
+  background: #4aa8ff;
+  box-shadow: 0 0 8px #4aa8ff;
+}
+
+.hud-drift.level2 i {
+  background: #ff8a2a;
+  box-shadow: 0 0 8px #ff8a2a;
+}
+
+/* ブーストゲージ（下の中央）。目盛りはリング1個分（25%）ずつ */
 .hud-gauge {
   position: absolute;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  bottom: calc(env(safe-area-inset-bottom) + 14px);
   transform: translateX(-50%);
-  width: 180px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 9px;
-  background: rgba(0, 0, 0, 0.35);
+  width: 200px;
+  height: 18px;
+  border: 3px solid #1a2a5a;
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
 
 .hud-gauge-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #4fc3ff, #9fe8ff);
+  background: linear-gradient(#9fe8ff, #2f8fe0);
+  transition: width 0.12s linear;
 }
 
 .hud-gauge.full .hud-gauge-fill {
-  background: linear-gradient(90deg, #ffb347, #ffe27a);
+  background: linear-gradient(#fff2a0, #f0a020);
+}
+
+.hud-gauge.full {
+  animation: hud-gauge-glow 0.8s ease-in-out infinite;
+}
+
+@keyframes hud-gauge-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(255, 210, 80, 0.6); }
+  50% { box-shadow: 0 0 14px rgba(255, 210, 80, 1); }
+}
+
+.hud-gauge-ticks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-evenly;
+}
+
+.hud-gauge-ticks i {
+  width: 2px;
+  height: 100%;
+  background: rgba(26, 42, 90, 0.8);
 }
 
 .hud-gauge-label {
   position: absolute;
   inset: 0;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 14px;
+  font-size: 11px;
+  line-height: 18px;
   text-align: center;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
 }
 
 /* カウントダウン（画面中央の大きな数字） */
@@ -282,7 +365,6 @@ body.is-touch #touch-ui {
   top: 42%;
   transform: translate(-50%, -50%);
   font-size: 120px;
-  font-weight: 900;
 }
 
 .hud-countdown.pop {
@@ -302,7 +384,6 @@ body.is-touch #touch-ui {
   top: 34%;
   transform: translate(-50%, -50%) scale(0.8);
   font-size: 44px;
-  font-weight: 900;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;
@@ -333,83 +414,151 @@ body.is-touch #touch-ui {
   font-size: 20px;
 }
 
-/* 結果表（操作部品より手前に出し、ボタンを押せるようにする） */
+/* ---- 結果画面（操作部品より手前に出し、ボタンを押せるようにする） ---- */
 .results {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 40;
-  pointer-events: auto;
-  min-width: 300px;
-  max-height: 86%;
-  overflow: auto;
-  padding: 14px 22px 18px;
-  border-radius: 14px;
-  background: rgba(16, 24, 56, 0.86);
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  text-align: center;
-  animation: results-in 0.35s ease-out;
+  cursor: default;
+  background: rgba(8, 14, 36, 0.5);
+  animation: title-in 0.4s ease both;
 }
 
-@keyframes results-in {
-  from { opacity: 0; transform: translate(-50%, -46%); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+/* 中身の箱。画面が小さいときは箱ごと縮める（HUD.js の fitResults） */
+.results-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 520px;
+  padding: 10px 22px 14px;
+  box-sizing: border-box;
+  background: rgba(16, 28, 64, 0.92);
+  border: 3px solid #1a2a5a;
+  outline: 2px solid rgba(255, 226, 138, 0.7);
+  border-radius: 10px;
+  transform-origin: center center;
 }
 
 .results-title {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 3px;
+  font-size: 22px;
+  letter-spacing: 0.3em;
   color: #ffe27a;
-  margin-bottom: 8px;
+  text-shadow: 2px 2px 0 #1a2a5a;
 }
 
-.results-table {
+.results-mine {
+  font-size: 20px;
+}
+
+.results-mine.place1 { color: #ffd84a; }
+.results-mine.place2 { color: #dfe8f2; }
+.results-mine.place3 { color: #f0a868; }
+
+.results-list {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 15px;
-  text-shadow: none;
 }
 
-.results-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+.results-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 29px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 16px;
 }
 
-.results-table tr.me td {
-  color: #ffe27a;
-  font-weight: 800;
+.results-row.me {
+  background: rgba(255, 210, 80, 0.18);
+  border-radius: 6px;
 }
 
 .results-rank {
-  text-align: left;
-  width: 3em;
+  width: 1.4em;
+  font-size: 20px;
+  text-align: center;
+}
+
+.results-row.place1 .results-rank { color: #ffd84a; }
+.results-row.place2 .results-rank { color: #dfe8f2; }
+.results-row.place3 .results-rank { color: #f0a868; }
+
+.results-icon {
+  width: 30px;
+  height: 30px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .results-name {
+  flex: 1;
   text-align: left;
 }
 
-.results-time {
-  text-align: right;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-}
-
-.results-retry {
-  margin-top: 14px;
-  padding: 10px 34px;
-  font-size: 18px;
-  font-weight: 800;
-  color: #10183a;
+.results-name small {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #2a1a00;
   background: #ffe27a;
-  border: none;
-  border-radius: 24px;
-  touch-action: manipulation;
+  border-radius: 3px;
+  vertical-align: middle;
 }
 
-.results-retry:active {
-  transform: scale(0.96);
+.results-time {
+  width: 5.2em;
+  text-align: right;
+}
+
+.results-gap {
+  width: 4.2em;
+  font-size: 13px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.results-best {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.results-new {
+  margin-left: 10px;
+  color: #ffe27a;
+  font-weight: normal;
+  animation: title-blink 0.8s ease-in-out infinite;
+}
+
+.results-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.results-btn {
+  flex: 1;
+  min-height: 48px;
+  font-family: inherit;
+  font-size: 17px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.results-btn.main {
+  flex: 1.3;
+  font-size: 20px;
+  color: #2a1a00;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  box-shadow: 0 4px 0 #0b1530;
+}
+
+.results-btn:active {
+  transform: translateY(2px);
 }
 
 /* ---- 縦向き警告（縦向きのときだけ表示） ---- */
