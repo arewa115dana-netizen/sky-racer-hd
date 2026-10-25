@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.10.1（Phase10 Step10-1）
+  バージョン : 0.10.3（Phase10 Step10-3）
 */
 
 import { CONFIG } from '../config.js';
@@ -52,6 +52,8 @@ export class RaceSession {
     this.playerSprite = null;
     this.playerBumps = 0;
     this.bumpSoundWait = 0;   // ぶつかる音を続けて鳴らしすぎないための待ち時間
+    this.ringCombo = 0;       // リングを続けて取った数（音が高くなる）
+    this.lastRingTime = -99;
     this.lastBoostTime = 0;
     this.hudView = { rank: 0, total: 0, lap: 1, laps: 3, time: 0, gauge: 0, countdown: null, drift: -1 };
     this.playerTurbos = 0;
@@ -269,12 +271,21 @@ export class RaceSession {
     if (ring.type === 'gauge') {
       racer.gauge = Math.min(1, racer.gauge + c.gaugeAmount);
       if (racer.isPlayer) {
-        this.audio.play('ring');
+        // 前のリングからすぐなら連続ボーナス：1つごとに音を全音（半音2つ）ずつ上げる
+        const a = CONFIG.audio;
+        const now = this.race.time;
+        this.ringCombo = now - this.lastRingTime < a.ringComboTime ? this.ringCombo + 1 : 0;
+        this.lastRingTime = now;
+        const steps = Math.min(this.ringCombo, a.ringComboMax);
+        this.audio.play('ring', { pitch: Math.pow(2, (steps * 2) / 12) });
         this.playerRings += 1;
       }
     } else if (ring.type === 'boost') {
       racer.startBoost(c.boostTime);
-      if (racer.isPlayer) this.playerRings += 1;
+      if (racer.isPlayer) {
+        this.playerRings += 1;
+        this.lastRingTime = this.race.time;   // ブーストリングでも連続は途切れない
+      }
       // ブースト音は、ブースト開始を見張っている update で鳴る
     }
     // 自分が通ったときだけ、リングからきらめきを散らす（粒を使いすぎないため）
@@ -345,6 +356,11 @@ export class RaceSession {
     if (!paused) this.effects.update(frameTime);
     this.audio.setEngine(paused ? 0 : player.getSpeedRatio());
     this.audio.setDrift(!paused && player.state === 'drift' ? player.driftLevel : -1);
+    // 風の音：速いほど強く、空中では地上より大きく
+    const a = CONFIG.audio;
+    const fast = Math.max(0, Math.min(1, (player.getSpeedRatio() - a.windStartSpeed) / (1.2 - a.windStartSpeed)));
+    const inAir = this.track.zoneAt(player.s) === 'air' && player.state !== 'respawn';
+    this.audio.setWind(paused ? 0 : fast * (inAir ? 1 : a.windGroundRatio));
     this.rings.update(frameTime);
 
     // 順位・周回・タイム・ゲージ・カウントダウン
@@ -414,6 +430,7 @@ export class RaceSession {
     this.effects.dispose();
     // レースの音を止める（キャラ選択やタイトルで、エンジン音が鳴り続けないように）
     this.audio.setDrift(-1);
+    this.audio.setWind(0);
     this.audio.silenceEngine();
   }
 }
