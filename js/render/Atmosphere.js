@@ -6,7 +6,7 @@
                  1. 光の筋   … 太陽から放射状に伸びるうっすらした光（太陽が画面にあるときだけ）
                  2. 光る粒   … カメラのまわりを漂う小さな光（花粉・魔力のような粒）
                  3. 周辺減光 … 画面の四隅を少し暗くして、真ん中に目が行くようにする
-  バージョン : 0.8.3（Phase8 Step8-3）
+  バージョン : 0.11.2（Phase11 Step11-2）
   メモ       : 画質 low の端末では光の筋と光る粒を出さない（周辺減光だけ）
 */
 
@@ -127,6 +127,26 @@ export class Atmosphere {
     s.background = 'radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, ' + a.vignetteColor + ' 100%)';
     document.body.appendChild(el);
     this.vignette = el;
+  }
+
+  // ---- 自動軽量化：光の筋と光る粒をやめる（周辺減光は軽いので残す）。やめた物があれば true ----
+  reduce() {
+    let changed = false;
+    if (this.rays) {
+      this.scene.remove(this.rays);
+      this.rays.geometry.dispose();
+      this.rays.material.dispose();
+      this.rays = null;
+      changed = true;
+    }
+    if (this.motes) {
+      this.scene.remove(this.motes);
+      this.motes.geometry.dispose();
+      this.motes.material.dispose();
+      this.motes = null;
+      changed = true;
+    }
+    return changed;
   }
 
   // ---- 毎フレーム（カメラを動かした後に呼ぶ） ----
