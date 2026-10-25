@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 0.5.4（Phase5 バランス調整）
+  バージョン : 0.6.1（Phase6 Step6-1）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '0.5.4',
+  VERSION: '0.6.1',
 
   // ゲームループ
   loop: {
@@ -109,6 +109,12 @@ export const CONFIG = {
     respawnBack: 10,     // 落ちた場所の何メートル手前に戻すか
     respawnSpeed: 0.5,   // 復帰したときの速さ（最高速の何倍）
     respawnBlink: 1.0,   // 復帰直後に点滅する時間（秒）
+    climbRate: 7,        // 空中で上下する速さ（メートル/秒）。飛行の能力3のとき
+    climbPerStat: 0.15,  // 飛行の能力1段階あたりの上下の速さの差（割合）
+    airSpeedPerStat: 0.025, // 飛行の能力1段階あたりの空中での最高速の差（割合）
+    pitchResponse: 4,    // 上下の入力への反応の速さ（大きいほどキビキビ）
+    landingAssist: 30,   // 地上区間の何メートル手前から高さを路面に寄せるか
+    landingPull: 3,      // 着地アシストの強さ
     boostMultiplier: 1.35,// ブースト中の最高速の倍率
     boostAccel: 20,      // ブースト中の加速の強さ
     buttonBoostTime: 1.2,// ブーストボタン1回で加速する時間（秒）
@@ -164,13 +170,15 @@ export const CONFIG = {
     steerToCurve: 12,    // 先のカーブに合わせて曲がり始める強さ
     straightCurvature: 0.006, // これより曲がりがゆるければ「まっすぐ」とみなす
     boostDelay: 0.8,     // ブーストを使えるようになってから使うまでの迷い（秒）
+    pitchToHeight: 0.35, // 空中で好きな高さへ戻ろうとする強さ
+    pitchDamping: 0.12,  // 上下の動きを落ち着かせる強さ
     // CPU5人の性格（lineOffset: 好きな走行位置 -1=左〜1=右、skill: 腕前 0〜1）
     personalities: [
-      { lineOffset: -0.6, skill: 0.92 },
-      { lineOffset: 0.5, skill: 0.88 },
-      { lineOffset: 0.0, skill: 0.9 },
-      { lineOffset: -0.2, skill: 0.86 },
-      { lineOffset: 0.7, skill: 0.88 }
+      { lineOffset: -0.6, skill: 0.92, heightBias: 3 },
+      { lineOffset: 0.5, skill: 0.88, heightBias: -3 },
+      { lineOffset: 0.0, skill: 0.9, heightBias: 6 },
+      { lineOffset: -0.2, skill: 0.86, heightBias: 0 },
+      { lineOffset: 0.7, skill: 0.88, heightBias: -1 }
     ]
   },
 
