@@ -2,9 +2,10 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 0.2.4（Phase2 Step2-4）
-  メモ       : このステップでは「走行」状態のみ。
-               空中はPhase6、ドリフトはPhase7、コースアウト復帰はPhase3で追加する
+  バージョン : 0.3.3（Phase3 Step3-3）
+  メモ       : 状態は 走行（drive）・空中（air）・復帰中（respawn）。
+               空中はまだ自動で滑空（上下操作はPhase6）、ドリフトはPhase7で追加する
+               柵のない道の端から外に出ると落下し、少し手前に戻って再開する
 
   位置はコース基準座標で持つ
     distance : スタートからの合計走行距離（周回をまたいで増え続ける）
@@ -45,6 +46,13 @@ export class Racer {
     this.boostTime = 0;
     this.boostRequested = false;
     this.wallHit = false;
+
+    // コースアウトと復帰
+    this.respawnTimer = 0;     // 落ちてからの時間
+    this.fallDirection = 0;    // 落ちた向き（-1 = 左、1 = 右）
+    this.invincibleTime = 0;   // 復帰直後の点滅時間（Phase4以降は衝突しない時間）
+    this.justRespawned = false;// 復帰した瞬間だけ true（カメラを合わせ直す合図）
+    this.fallCount = 0;
 
     // 受け取った入力
     this.input = { steer: 0, pitch: 0, drift: false, boost: false, brake: false };
@@ -102,6 +110,16 @@ export class Racer {
     this.prevY = this.y;
     this.prevAngle = this.angle;
 
+    if (this.invincibleTime > 0) {
+      this.invincibleTime = Math.max(0, this.invincibleTime - dt);
+    }
+
+    // 落下中は操作を受け付けず、落下と復帰だけを計算する
+    if (this.state === 'respawn') {
+      this.stepRespawn(dt);
+      return;
+    }
+
     // ブーストゲージ（試走用の自然回復）
     this.gauge = Math.min(1, this.gauge + r.gaugeRegen * dt);
     if (this.boostRequested) {
@@ -144,9 +162,22 @@ export class Racer {
     // 向きのずれには上限（コース上で逆走しないように）
     this.angle = clamp(this.angle, -r.maxAngle, r.maxAngle);
 
-    // 壁：道の端で押し戻し、こすれている間は減速
-    const limit = track.widthAt(this.s) / 2 - r.wallMargin;
+    const zone = track.zoneAt(this.s);
+    const half = track.widthAt(this.s) / 2;
     this.wallHit = false;
+
+    // 柵のない道の端：外に出すぎると落下
+    if (zone === 'ground' && track.edgeAt(this.s) === 'open') {
+      this.y = 0;
+      this.state = 'drive';
+      if (Math.abs(this.x) > half + r.fallMargin) {
+        this.startFall();
+      }
+      return;
+    }
+
+    // 柵のある所・空中区間：道の端で押し戻し、こすれている間は減速
+    const limit = half - r.wallMargin;
     if (this.x > limit) {
       this.x = limit;
       if (this.angle > 0) this.angle *= r.wallAngleKeep;
@@ -160,9 +191,48 @@ export class Racer {
       this.speed *= Math.max(0, 1 - r.wallFriction * dt);
     }
 
-    // このステップでは地上のみ
+    // 空中区間はまだ自動で中心線の高さを滑空する（上下操作はPhase6）
     this.y = 0;
-    this.state = 'drive';
+    this.state = zone === 'air' ? 'air' : 'drive';
+  }
+
+  // ---- コースアウトと復帰 ----
+  startFall() {
+    this.state = 'respawn';
+    this.respawnTimer = 0;
+    this.fallDirection = this.x > 0 ? 1 : -1;
+    this.vy = 0;
+    this.boostTime = 0;
+    this.fallCount += 1;
+  }
+
+  stepRespawn(dt) {
+    const r = CONFIG.racer;
+    this.respawnTimer += dt;
+
+    if (this.respawnTimer < r.fallTime) {
+      // 道の外へ流れながら落ちていく（前には進まない）
+      this.vy -= r.gravity * dt;
+      this.y += this.vy * dt;
+      this.x += this.fallDirection * this.speed * 0.3 * dt;
+      this.speed *= Math.max(0, 1 - 1.5 * dt);
+      return;
+    }
+
+    if (this.respawnTimer >= r.respawnTime) {
+      // 少し手前の道の中央に戻し、速度を半分にして再開
+      const back = Math.max(0, this.distance - r.respawnBack);
+      this.placeAt(back, 0);
+      this.speed = this.maxSpeed * r.respawnSpeed;
+      this.state = this.track.zoneAt(this.s) === 'air' ? 'air' : 'drive';
+      this.invincibleTime = r.respawnBlink;
+      this.justRespawned = true;
+    }
+  }
+
+  // 落下中で、絵を隠す時間か
+  isHidden() {
+    return this.state === 'respawn' && this.respawnTimer >= CONFIG.racer.fallTime;
   }
 
   // ブースト開始（ボタン・ミニターボ・ブーストリング共通）
