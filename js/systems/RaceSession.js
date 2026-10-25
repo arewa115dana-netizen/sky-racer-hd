@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.7.1（Phase7 Step7-1）
+  バージョン : 0.7.2（Phase7 Step7-2）
 */
 
 import { CONFIG } from '../config.js';
@@ -16,6 +16,7 @@ import { resolveCollisions } from './Collision.js';
 import { RaceManager } from './RaceManager.js';
 import { HUD } from '../ui/HUD.js';
 import { Rings } from '../world/Rings.js';
+import { Effects } from '../render/Effects.js';
 
 export class RaceSession {
   /**
@@ -69,6 +70,10 @@ export class RaceSession {
     }
     this.airHintShown = false;
     this.playerRings = 0;
+
+    // 粒の演出（火花・炎・きらめき）
+    this.effects = new Effects(this.scene);
+    this.ringPos = { x: 0, y: 0, z: 0 };   // リングのきらめき用（毎回作らない）
 
     this.race = new RaceManager(this.racers, this.track);
     this.hud = new HUD(document.body);
@@ -218,13 +223,16 @@ export class RaceSession {
       this.debug.log('コースアウト！');
     }
 
-    // ミニターボを数える（デバッグ表示用）
-    if (player.lastTurbo > 0) {
-      this.playerTurbos += 1;
-      player.lastTurbo = 0;
-    }
+    // ミニターボ：火花をパッと散らす。自分なら音を鳴らして数える（デバッグ表示用）
     for (const r of this.racers) {
-      if (!r.isPlayer) r.lastTurbo = 0;
+      if (r.lastTurbo > 0) {
+        this.effects.turboBurst(r, r.lastTurbo);
+        if (r.isPlayer) {
+          this.playerTurbos += 1;
+          this.audio.play('turbo');
+        }
+        r.lastTurbo = 0;
+      }
     }
 
     // ブーストが始まった瞬間に音を鳴らす
@@ -247,6 +255,11 @@ export class RaceSession {
       racer.startBoost(c.boostTime);
       if (racer.isPlayer) this.playerRings += 1;
       // ブースト音は、ブースト開始を見張っている update で鳴る
+    }
+    // 自分が通ったときだけ、リングからきらめきを散らす（粒を使いすぎないため）
+    if (racer.isPlayer) {
+      this.track.toWorld(ring.s, ring.x, ring.y, this.ringPos);
+      this.effects.ringBurst(this.ringPos, ring.type === 'gauge' ? c.gaugeColor : c.boostColor);
     }
   }
 
@@ -298,8 +311,12 @@ export class RaceSession {
         racer.justRespawned = false;
       }
       this.updateSprite(racer, this.sprites[i], frameTime);
+      // 一時停止中は新しい粒を出さない
+      if (!paused) this.effects.emitForRacer(racer, frameTime);
     }
+    if (!paused) this.effects.update(frameTime);
     this.audio.setEngine(paused ? 0 : player.getSpeedRatio());
+    this.audio.setDrift(!paused && player.state === 'drift' ? player.driftLevel : -1);
     this.rings.update(frameTime);
 
     // 順位・周回・タイム・ゲージ・カウントダウン
@@ -366,6 +383,8 @@ export class RaceSession {
     }
     this.hud.dispose();
     this.rings.dispose();
+    this.effects.dispose();
+    this.audio.setDrift(-1);
   }
 }
 
