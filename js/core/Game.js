@@ -3,8 +3,8 @@
   保存場所   : /js/core
   役割       : ゲーム全体の司令塔。描画の準備、状態の管理、
                毎フレームの更新と描画を各部品に指示する
-  バージョン : 0.3.1（Phase3 Step3-1）
-  メモ       : 天空神殿コースを、ドット絵のキャラクターで走る。
+  バージョン : 0.3.2（Phase3 Step3-2）
+  メモ       : 天空神殿コースを、ドット絵のキャラクターで走る。背景つき。
                空中区間はまだ自動で滑空する（上下操作はPhase6）
                PCでは数字キー 1〜6 でキャラクター切り替え、P で省電力モード切り替え
 */
@@ -19,6 +19,7 @@ import { AudioManager } from '../audio/AudioManager.js';
 import { Track } from '../world/Track.js';
 import { SKY_TEMPLE } from '../world/CourseData.js';
 import { buildCourse } from '../world/CourseBuilder.js';
+import { Environment } from '../world/Environment.js';
 import { Racer } from '../entities/Racer.js';
 import { RacerSprite } from '../entities/RacerSprite.js';
 import { CHARACTERS } from '../entities/Characters.js';
@@ -70,6 +71,9 @@ export class Game {
     // コース：制御点から中心線を計算し、見た目を自動で作る
     this.track = new Track(SKY_TEMPLE);
     this.scene.add(buildCourse(this.track));
+
+    // 背景：空・雲海・浮遊島・遺跡・神殿
+    this.environment = new Environment(this.scene, this.quality, this.track);
 
     // 全キャラクターのドット絵を1枚の画像にまとめて作る
     this.atlas = buildAtlas(CHARACTERS);
@@ -148,9 +152,7 @@ export class Game {
   setupScene() {
     const r = CONFIG.render;
     this.scene = new THREE.Scene();
-    const sky = new THREE.Color(r.skyColor);
-    this.scene.background = sky;
-    this.scene.fog = new THREE.Fog(sky, r.fogNear, r.fogFar);
+    // 空の色とフォグは Environment が設定する
 
     this.camera = new THREE.PerspectiveCamera(
       r.fov,
@@ -247,6 +249,7 @@ export class Game {
       // 順番が大事：位置を決める → カメラを動かす → 絵をカメラへ向ける
       this.player.computeRenderPose(alpha);
       this.cameraRig.follow(this.player, this.track, frameTime);
+      this.environment.update(frameTime, this.camera.position);
       this.playerSprite.update(this.player, this.camera, frameTime);
       // 空中では足元の影を消す（下に地面がないため）
       this.playerSprite.shadow.visible = this.track.zoneAt(this.player.s) === 'ground';
