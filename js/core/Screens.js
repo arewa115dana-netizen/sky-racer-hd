@@ -2,9 +2,9 @@
   ファイル名 : Screens.js
   保存場所   : /js/core
   役割       : 画面の流れの管理。タイトル → キャラ選択 → レース、と一時停止メニュー。
-               設定（音量・BGM・省電力・仕上げ処理・デバッグ表示）と、選んだキャラをスマホに保存して反映する。
+               設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラをスマホに保存して反映する。
                画面に合わせてBGMを切り替える（タイトル・キャラ選択はタイトル曲、レースはレース曲）
-  バージョン : 0.10.2（Phase10 Step10-2）
+  バージョン : 1.0.0（Phase12 Step12-3）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -18,6 +18,12 @@ import { PauseMenu } from '../ui/Menu.js';
 
 const CHAR_KEY = 'skyRacer.character';
 const SETTINGS_KEY = 'skyRacer.settings';
+// 保存データの形の番号。1.0.0 でデバッグ表示の初期値を OFF にしたので、それより前の保存では
+// デバッグ表示の設定だけ初期値（OFF）に戻す
+const SETTINGS_FORMAT = 2;
+
+// CPUの腕前の元の値（難しさに合わせて、毎回ここから計算し直す）
+const BASE_SKILLS = CONFIG.ai.personalities.map((p) => p.skill);
 
 export class Screens {
   /**
@@ -62,6 +68,8 @@ export class Screens {
       g.quality.setPowerSave(value);
     } else if (key === 'postfx') {
       if (g.postfx.enabled !== (value && this.canPostfx())) g.postfx.toggle();
+    } else if (key === 'difficulty') {
+      applyDifficulty(value);
     } else if (key === 'debug') {
       // メニュー中は隠したまま。レースに戻ったときに反映される
       if (g.state === 'RACE' && !this.menu) g.debug.setVisible(value);
@@ -126,7 +134,10 @@ export class Screens {
         g.startRace(index);
       },
       onBack: () => this.showTitle(),
-      onSound: (name) => g.audio.play(name)   // 'select'（選ぶ）・'decide'（決定）
+      onSound: (name) => g.audio.play(name),   // 'select'（選ぶ）・'decide'（決定）
+      difficulties: CONFIG.difficulty.order.map((key) => ({ key, label: CONFIG.difficulty.levels[key].label })),
+      difficulty: this.settings.difficulty,
+      onDifficulty: (key) => this.setSetting('difficulty', key)
     });
   }
 
@@ -212,6 +223,17 @@ export class Screens {
   }
 }
 
+// ---- 難しさ：CPUの腕前・追い上げ補正・最高速を、選んだ段階の値にする（次のレースから効く） ----
+function applyDifficulty(key) {
+  const level = CONFIG.difficulty.levels[key] || CONFIG.difficulty.levels[CONFIG.difficulty.default];
+  CONFIG.ai.personalities.forEach((p, i) => {
+    p.skill = Math.min(1, BASE_SKILLS[i] * level.skill);
+  });
+  CONFIG.rubberBand.maxSlow = level.rubberSlow;
+  CONFIG.rubberBand.maxFast = level.rubberFast;
+  CONFIG.rubberBand.cpuSpeed = level.cpuSpeed;
+}
+
 // ---- 保存と読み込み（保存できない環境でも動くよう、失敗は無視する） ----
 
 function loadCharIndex() {
@@ -238,7 +260,8 @@ function defaultSettings() {
     music: Math.round(CONFIG.audio.musicVolume * 10),
     powerSave: CONFIG.quality.powerSave,
     postfx: CONFIG.postfx.enabled,
-    debug: CONFIG.debug.show
+    debug: CONFIG.debug.show,
+    difficulty: CONFIG.difficulty.default
   };
 }
 
@@ -250,17 +273,20 @@ function loadSettings() {
     for (const key of Object.keys(settings)) {
       if (typeof saved[key] === typeof settings[key]) settings[key] = saved[key];
     }
+    // 古い形の保存では、デバッグ表示は初期値（OFF）にする
+    if (saved.format !== SETTINGS_FORMAT) settings.debug = CONFIG.debug.show;
   } catch (e) {
     // 読めなければ初期値のまま
   }
   settings.volume = Math.max(0, Math.min(10, Math.round(settings.volume)));
   settings.music = Math.max(0, Math.min(10, Math.round(settings.music)));
+  if (!CONFIG.difficulty.levels[settings.difficulty]) settings.difficulty = CONFIG.difficulty.default;
   return settings;
 }
 
 function saveSettings(settings) {
   try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, format: SETTINGS_FORMAT }));
   } catch (e) {
     // 保存できなくても、今回の間は設定が効いている
   }
