@@ -2,11 +2,13 @@
   ファイル名 : style.css
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
-               レース中の表示（HUD）、タイトル画面、縦向き警告、エラー表示の見た目
-  バージョン : 0.10.3（Phase10 Step10-3）
+               レース中の表示（HUD）、タイトル画面（遊び方の説明つき）、キャラ選択（難しさつき）、
+               縦向き警告、エラー表示の見た目
+  バージョン : 1.0.0（Phase12 Step12-3）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
+    （遊び方の説明はタイトル画面の中で、タイトルの文字より手前） /
     操作部品 20 / HUD 15 / デバッグ 10 / 周辺減光 5
 */
 
@@ -712,6 +714,143 @@ body.in-menu #touch-ui {
   color: rgba(255, 255, 255, 0.75);
 }
 
+/* 左下の「遊び方」ボタン */
+.title-howto-btn {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  min-height: 40px;
+  padding: 6px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: rgba(10, 20, 50, 0.65);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- 遊び方の説明（タイトル画面の中に重ねる） ---- */
+.howto {
+  position: absolute;
+  inset: 0;
+  z-index: 2;                  /* タイトルの文字・ボタンより手前 */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 14, 36, 0.78);
+  cursor: default;
+}
+
+.howto.open {
+  display: flex;
+  animation: title-in 0.25s ease both;
+}
+
+/* 中身の箱。画面が小さいときは、この箱ごと縮める（Title.js の fitHowto） */
+.howto-inner {
+  width: 760px;
+  box-sizing: border-box;
+  padding: 16px 22px 18px;
+  background: rgba(16, 30, 70, 0.92);
+  border: 3px solid #1a2a5a;
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  text-align: center;
+  transform-origin: center center;
+}
+
+.howto-title {
+  font-size: 24px;
+  letter-spacing: 0.3em;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.howto-goal {
+  margin: 6px 0 12px;
+  font-size: 16px;
+}
+
+.howto-goal b {
+  color: #ffd34a;
+}
+
+.howto-cols {
+  display: flex;
+  gap: 18px;
+  text-align: left;
+}
+
+.howto-col {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 12px;
+  background: rgba(10, 20, 50, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+}
+
+.howto-head {
+  margin-bottom: 6px;
+  font-size: 16px;
+  color: #ffd34a;
+}
+
+.howto dl {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.howto dt {
+  margin-top: 4px;
+  color: #9fe8ff;
+}
+
+.howto dd {
+  margin: 0 0 0 1em;
+}
+
+.howto ul {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.howto li {
+  margin-bottom: 3px;
+}
+
+.howto-pc {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.c-blue { color: #6fb6ff; }
+.c-orange { color: #ff9a3c; }
+.c-gold { color: #ffc93a; }
+
+.howto-close {
+  margin-top: 14px;
+  min-width: 140px;
+  height: 44px;
+  font-family: inherit;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  color: #2a1a00;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  border-radius: 8px;
+  box-shadow: 0 4px 0 #0b1530;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ---- キャラクター選択画面 ---- */
 #charselect {
   cursor: default;
@@ -892,6 +1031,39 @@ body.in-menu #touch-ui {
 .cs-decide:active {
   transform: translateY(3px);
   box-shadow: 0 1px 0 #0b1530;
+}
+
+/* 難しさ（やさしい／ふつう／むずかしい） */
+.cs-diff {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.cs-diff-label {
+  letter-spacing: 0.1em;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.cs-diff-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.cs-diff-btn {
+  min-width: 96px;
+  height: 36px;
+  font-size: 15px;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 18px;
+}
+
+.cs-diff-btn.selected {
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border-color: #1a2a5a;
 }
 
 /* ---- 一時停止メニューと設定 ---- */
