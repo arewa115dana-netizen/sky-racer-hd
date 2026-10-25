@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 0.6.2（Phase6 Step6-2）
+  バージョン : 0.6.3（Phase6 Step6-3）
 */
 
 import { CONFIG } from '../config.js';
@@ -61,6 +61,10 @@ export class RaceSession {
     this.rings = new Rings(this.scene, this.track, this.track.data.rings);
     for (const r of this.racers) {
       r.gauge = CONFIG.rings.startGauge;
+    }
+    // CPUにリングの場所を教える（リングを狙って飛ぶ）
+    for (const ai of this.ais) {
+      if (ai) ai.setRings(this.rings);
     }
     this.airHintShown = false;
     this.playerRings = 0;
@@ -153,6 +157,7 @@ export class RaceSession {
         // ゴール後はCPUと同じ思考で自動で走らせる
         const index = this.racers.indexOf(racer);
         this.ais[index] = new AIController(racer, this.track, { lineOffset: 0, skill: 0.9, seed: 1 });
+        this.ais[index].setRings(this.rings);
       }
     });
   }
