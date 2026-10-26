@@ -2,10 +2,10 @@
   ファイル名 : Lobby.js
   保存場所   : /js/ui
   役割       : みんなで対戦の画面（コース選択の「みんなで対戦」タブから来る）。
-                 入口 … 名前を決めて「部屋を作る」か、友達の部屋番号（4桁）を入れて「入る」
+                 入口 … 名前を決めて「部屋を作る」か、友達の部屋番号（6桁）を入れて「入る」
                  部屋 … 部屋番号を大きく出し、メンバー（最大4人。あきはCPU）を並べる。
                         ホストはコースを選んで「スタート」。ゲストはホストのスタートを待つ
-  バージョン : 1.18.1（Phase18：使えているつなぎ合わせのルートを小さく表示）
+  バージョン : 1.20.0（Phase20：部屋番号を6けたに）
   メモ       : つなぐ処理は Screens.js（Room.js）が行う。この画面は見た目と操作だけ
 */
 
@@ -81,8 +81,8 @@ export class Lobby {
       '  </div>' +
       '  <div class="lb-choice">' +
       '    <div class="lb-choice-head">部屋に入る</div>' +
-      '    <div class="lb-choice-text">友達の部屋番号（4けた）を入れる</div>' +
-      '    <div class="lb-join-row"><input class="lb-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off">' +
+      '    <div class="lb-choice-text">友達の部屋番号（6けた）を入れる</div>' +
+      '    <div class="lb-join-row"><input class="lb-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="off">' +
       '    <button class="lb-btn main lb-join" type="button">入る</button></div>' +
       '  </div>' +
       '</div>' +
@@ -93,7 +93,7 @@ export class Lobby {
     this.statusEl = this.inner.querySelector('.lb-status');
     this.nameInput.value = name;
     this.codeInput.addEventListener('input', () => {
-      this.codeInput.value = this.codeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      this.codeInput.value = this.codeInput.value.replace(/[^0-9]/g, '').slice(0, 6);
     });
     this.inner.querySelector('.lb-create').addEventListener('click', () => this.create());
     this.inner.querySelector('.lb-join').addEventListener('click', () => this.join());
@@ -115,8 +115,8 @@ export class Lobby {
   join() {
     if (this.busy) return;
     const code = this.codeInput.value;
-    if (!/^[0-9]{4}$/.test(code)) {
-      this.setStatus('部屋番号は4けたの数字です', true);
+    if (!/^[0-9]{6}$/.test(code)) {
+      this.setStatus('部屋番号は6けたの数字です', true);
       return;
     }
     this.onSound('decide');

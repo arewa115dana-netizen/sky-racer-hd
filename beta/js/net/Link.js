@@ -4,7 +4,7 @@
   役割       : 相手のスマホ1台との直接の通り道（WebRTC）。通り道は2本：
                  c … 確実に届く（部屋の情報・スタート・ゴールなど、落としてはいけない知らせ）
                  u … 届かなくても待たない（1秒に何回も送る位置。古い位置を待つより次の位置を使う）
-  バージョン : 1.18.0（Phase18 Step18-1）
+  バージョン : 1.20.0（Phase20：大きすぎる・形の違う知らせは無視）
   メモ       : つなぎ始め（申し込み・返事・通り道の候補）は Signal.js（仲介サーバー）経由で運ぶ。
                参加する人が申し込み（offer）、部屋を作った人が返事（answer）をする
 */
@@ -74,12 +74,15 @@ export class Link {
     ch.onopen = () => this.checkOpen();
     ch.onclose = () => this.close();
     ch.onmessage = (e) => {
+      // 大きすぎる・形の違う知らせは無視する（このゲームの知らせは小さい）
+      if (typeof e.data !== 'string' || e.data.length > 8000) return;
       let m;
       try {
         m = JSON.parse(e.data);
       } catch (err) {
         return;
       }
+      if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
       this.onMessage(m);
     };
   }

@@ -6,7 +6,7 @@
                設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラ・コースを
                スマホに保存して反映する。
                画面に合わせてBGMを切り替える（タイトル・選択画面はタイトル曲、レースはコースの曲）
-  バージョン : 1.18.0（Phase18：みんなで対戦の部屋とレース）
+  バージョン : 1.20.0（Phase20：届いたスタートの知らせの確認）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -441,7 +441,13 @@ export class Screens {
     if (!room) return;
     const index = m.course;
     const course = COURSES[index];
-    if (!course) return;
+    // 届いた中身の確認：コースがあり、6人分の枠がそろっていること
+    if (!course || !course.ready || !Array.isArray(m.slots) || m.slots.length !== CONFIG.race.racerCount) return;
+    m.slots = m.slots.map((x) => ({
+      pid: Number.isInteger(x && x.pid) ? x.pid : -1,
+      char: Number.isInteger(x && x.char) && x.char >= 0 && x.char < CHARACTERS.length ? x.char : 0,
+      name: String((x && x.name) || '').replace(/[<>&"']/g, '').slice(0, 8) || 'プレイヤー'
+    }));
     if (this.menu) this.closePauseMenu(false);
     this.closeLobby();
     if (g.session) {

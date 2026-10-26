@@ -7,7 +7,7 @@
                      ホスト … 全員分（自分・CPU・ゲストから届いた位置）をまとめて全員へ
                  ・届いた位置を少し遅らせて（0.12秒）前後の位置の間をなめらかにつなぎ、相手の機体を動かす
                  ・ゴールのタイムはホストがまとめて、全員に同じ表を配る（全員の結果が同じになる）
-  バージョン : 1.18.0（Phase19 Step19-1）
+  バージョン : 1.20.0（Phase20：届いた中身の確認・通信が止まったかの確認）
   メモ       : 「自分で動かす」レーサー … 普通の物理で動く（ホストはCPUも）
                「届いた位置で動かす」レーサー（racer.remote = true）… 物理は計算せず、位置を写すだけ
 */
@@ -40,7 +40,8 @@ export class NetRace {
     this.latest = new Map();      // ホスト：ゲストのレーサー → 最後に届いた位置と、届いた時刻
     this.turbos = new Map();      // レーサー → 送ったミニターボの回数
     this.finishTable = new Map(); // ホスト：レーサー → ゴールタイム（全員に配る表）
-    this.onLeft = null;           // ゲストが抜けたときに RaceSession が呼んでほしい関数
+    this.onLeft = null;
+    this.lastHeard = this.clock;  // 最後に位置が届いた時刻（ホストの通信が止まったかを見る）           // ゲストが抜けたときに RaceSession が呼んでほしい関数
 
     for (const r of this.racers) {
       this.buffers.set(r, []);
@@ -51,7 +52,10 @@ export class NetRace {
     const room = this.room;
     if (this.isHost) {
       room.on('s', (m, pid) => this.receive(m, pid));
-      room.on('fin', (m) => this.receiveFinish(m.slot, m.time));
+      // ゴールの知らせは、本人の分だけ受け付ける
+      room.on('fin', (m, pid) => {
+        if (this.slots[m.slot] && this.slots[m.slot].pid === pid) this.receiveFinish(m.slot, m.time);
+      });
       room.on('left', (m) => this.guestLeft(m.pid));
     } else {
       room.on('S', (m) => this.receive(m, 0));
@@ -146,9 +150,11 @@ export class NetRace {
 
   // ---- 位置が届いた ----
   receive(m, fromPid) {
-    if (!m.l) return;
+    // 形の確認：時刻は数、位置は最大6人分で、1人分は15個の数
+    if (!Array.isArray(m.l) || m.l.length > 6 || !Number.isFinite(m.tm)) return;
     // 相手の時計とのずれ：速く届いたときの値に合わせ、ゆっくり遅い方へ戻す（通信のゆらぎに強くする）
     const now = performance.now() / 1000;
+    this.lastHeard = now;
     const off = now - m.tm;
     let sd = this.senders.get(fromPid);
     if (!sd) {
@@ -159,6 +165,7 @@ export class NetRace {
     // ゆらぎ：いちばん速く届いたときより、どれだけ遅れて届いたか（の平均）
     sd.jit = sd.jit * 0.95 + Math.max(0, off - sd.off) * 0.05;
     for (const e of m.l) {
+      if (!Array.isArray(e) || e.length !== 15 || !e.every(Number.isFinite)) continue;
       const r = this.racers[e[0]];
       if (!r || !r.remote) continue;
       // ゲストは、自分の位置を相手に動かされないようにする（自分は remote ではないので上で除かれる）
@@ -257,7 +264,7 @@ export class NetRace {
   receiveFinish(slot, time) {
     if (!this.isHost) return;
     const r = this.racers[slot];
-    if (!r || this.finishTable.has(r) || typeof time !== 'number') return;
+    if (!r || this.finishTable.has(r) || !Number.isFinite(time) || time <= 0) return;
     this.finishTable.set(r, time);
     if (r.remote) this.race.setFinish(r, time);
     this.room.broadcast({ t: 'fins', l: Array.from(this.finishTable, ([racer, t]) => [this.racers.indexOf(racer), t]) });
@@ -265,7 +272,11 @@ export class NetRace {
 
   // ゲスト：ホストから表が届いた
   receiveFinishes(list) {
-    for (const [slot, time] of list) {
+    if (!Array.isArray(list)) return;
+    for (const item of list) {
+      if (!Array.isArray(item)) continue;
+      const [slot, time] = item;
+      if (!Number.isFinite(time)) continue;
       const r = this.racers[slot];
       if (r && r.remote && this.race.finishTimeOf(r) === null) this.race.setFinish(r, time);
     }
@@ -278,6 +289,11 @@ export class NetRace {
     const r = this.racers[slot];
     this.slots[slot] = { ...this.slots[slot], pid: -1 };
     if (r.remote && this.onLeft) this.onLeft(r, slot);
+  }
+
+  // 最後に位置が届いてから何秒たったか
+  silence() {
+    return performance.now() / 1000 - this.lastHeard;
   }
 
   dispose() {

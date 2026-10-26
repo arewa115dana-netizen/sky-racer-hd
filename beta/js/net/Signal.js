@@ -6,7 +6,7 @@
                自分でサーバーを持たずにすむよう、無料の公開サーバーを使う。1つがだめでも遊べるよう、2種類ある
                  peerjs … PeerJS の公開サーバー（0.peerjs.com）
                  mqtt   … 誰でも使える公開の伝言板（MQTT）。自分あての「掲示板」を見張り、相手の掲示板に書き込む
-  バージョン : 1.18.1（Phase18：予備のルート（MQTT）と、失敗したときの詳しい理由）
+  バージョン : 1.20.0（Phase20：やりとりの中身を部屋の鍵で暗号化）
   メモ       : どちらも使い方は同じ（createSignal で作る）。知らせの種類は
                  OPEN（登録できた）・ID-TAKEN（その部屋番号は使用中）・OFFER / ANSWER / CANDIDATE（相手へ運ぶ中身）・
                  EXPIRE（相手が見つからない）
@@ -14,12 +14,14 @@
 */
 
 import { CONFIG } from '../config.js';
+import { seal, unseal } from './Secure.js';
 
 /**
  * つなぎ合わせ係を1つ作る
  * @param {object} route CONFIG.net.routes の1つ
  * @param {string} id このスマホの名前
  * @param {object} h 知らせを受け取る関数 { onOpen, onTaken, onMessage(type, src, payload), onError(理由) }
+ *                   と、部屋の鍵 key（あれば中身を暗号化する。鍵で開けられない知らせは無視）
  */
 export function createSignal(route, id, h) {
   return route.kind === 'mqtt' ? new MqttSignal(route, id, h) : new PeerSignal(route, id, h);
@@ -33,6 +35,9 @@ class BaseSignal {
     this.h = h;
     this.open = false;
     this.closed = false;
+    this.key = h.key || null;
+    this.inQueue = Promise.resolve();    // 届いた順・送る順を守るための待ち行列（暗号の計算は少し時間がかかる）
+    this.outQueue = Promise.resolve();
     this.openTimer = setTimeout(() => {
       if (!this.open) this.fail('返事がありません');
     }, CONFIG.net.signalTimeout * 1000);
@@ -60,6 +65,27 @@ class BaseSignal {
         // 送れなかった分は、相手の待ち時間切れで分かる
       }
     }
+  }
+
+  // 相手（dst）へ運んでもらう（鍵があれば暗号化してから）
+  send(type, dst, payload) {
+    this.outQueue = this.outQueue.then(async () => {
+      const body = this.key ? { e: await seal(this.key, payload) } : payload;
+      if (!this.closed) this.sendNow(type, dst, body);
+    }).catch(() => {});
+  }
+
+  // 届いた知らせを渡す（鍵があれば開けてから。開けられなければ無視）
+  deliver(type, src, payload) {
+    this.inQueue = this.inQueue.then(async () => {
+      let body = payload;
+      if (this.key && type !== 'EXPIRE') {
+        if (!body || typeof body.e !== 'string' || body.e.length > 20000) return;
+        body = await unseal(this.key, body.e);
+        if (!body) return;
+      }
+      if (!this.closed && this.h.onMessage) this.h.onMessage(type, src, body);
+    }).catch(() => {});
   }
 
   opened() {
@@ -126,12 +152,11 @@ class PeerSignal extends BaseSignal {
     } else if (m.type === 'ERROR') {
       this.fail('エラー ' + (m.payload && m.payload.msg ? m.payload.msg : '不明'));
     } else if (m.type === 'OFFER' || m.type === 'ANSWER' || m.type === 'CANDIDATE' || m.type === 'EXPIRE') {
-      if (this.h.onMessage) this.h.onMessage(m.type, m.src, m.payload);
+      this.deliver(m.type, m.src, m.payload);
     }
   }
 
-  // 相手（dst）へ運んでもらう
-  send(type, dst, payload) {
+  sendNow(type, dst, payload) {
     this.rawSend(JSON.stringify({ type, dst, payload }));
   }
 }
@@ -206,12 +231,12 @@ class MqttSignal extends BaseSignal {
       } catch (e) {
         return;
       }
-      if (m && m.type && m.src && this.h.onMessage) this.h.onMessage(m.type, m.src, m.payload);
+      if (m && typeof m.type === 'string' && typeof m.src === 'string') this.deliver(m.type, m.src, m.payload);
     }
   }
 
   // 相手（dst）の掲示板に書く
-  send(type, dst, payload) {
+  sendNow(type, dst, payload) {
     const msg = new TextEncoder().encode(JSON.stringify({ type, src: this.id, payload }));
     this.rawSend(packet(0x30, concat([str(CONFIG.net.mqttTopic + dst), msg])));
   }

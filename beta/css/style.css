@@ -1661,7 +1661,7 @@ body.in-menu #touch-ui {
 }
 
 .lb-code {
-  width: 5em;
+  width: 6.6em;
   text-align: center;
   letter-spacing: 0.25em;
   font-size: 22px !important;
@@ -1720,7 +1720,7 @@ body.in-menu #touch-ui {
 
 .lb-code-big b {
   font-size: 44px;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   color: #ffd34a;
 }
 

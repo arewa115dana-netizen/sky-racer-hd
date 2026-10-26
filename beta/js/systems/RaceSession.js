@@ -268,7 +268,20 @@ export class RaceSession {
     const wasRespawning = player.state === 'respawn';
 
     // みんなで対戦：位置を送り、届いた位置で相手を動かす
-    if (this.netRace) this.netRace.update(dt);
+    if (this.netRace) {
+      this.netRace.update(dt);
+      // ゲスト：ホストの通信が止まったら知らせる（ホストのアプリが裏に回った、など）
+      if (!this.net.room.isHost && !this.resultsShown && this.race.isRunning()) {
+        const quiet = this.netRace.silence();
+        if (quiet > 2 && !this.stallShown) {
+          this.stallShown = true;
+          this.hud.showBanner('ホストの通信を待っています…', 0, 'hint');
+        } else if (quiet < 0.5 && this.stallShown) {
+          this.stallShown = false;
+          this.hud.hideBanner();
+        }
+      }
+    }
 
     // カウントダウン中はレーサーを止めておく
     if (this.race.isRunning()) {

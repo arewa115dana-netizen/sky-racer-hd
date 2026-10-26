@@ -3,9 +3,9 @@
   保存場所   : /js/net
   役割       : みんなで対戦の「部屋」。部屋を作った人（ホスト）がまとめ役になり、
                参加した人（ゲスト）はホストとだけつながる（ゲスト同士の知らせはホストが中継する）。
-                 ホスト … 4桁の部屋番号で仲介サーバーに登録し、来た人を迎え入れる。メンバーとコースを全員に知らせる
+                 ホスト … 6桁の部屋番号から作った名前で仲介サーバーに登録し、来た人を迎え入れる。メンバーとコースを全員に知らせる
                  ゲスト … 部屋番号のホストに申し込み、迎え入れてもらう
-  バージョン : 1.18.1（Phase18：つなぎ合わせ係を3ルートに。ホストは全部で待ち、ゲストは順に試す）
+  バージョン : 1.20.0（Phase20：部屋番号6けた・やりとりの暗号化・届いた知らせの確認）
   メモ       : 知らせは { t: 種類, ... } の形。部屋の中の知らせ（hello / welcome / reject / room / prof /
                ping / pong / bye）はここで処理し、それ以外（レースの知らせ）は on() で登録した関数に渡す。
                メンバーの番号（pid）：ホストは 0、ゲストは来た順に 1, 2, 3 …
@@ -13,6 +13,7 @@
 
 import { CONFIG } from '../config.js';
 import { createSignal } from './Signal.js';
+import { roomSecrets } from './Secure.js';
 import { Link } from './Link.js';
 
 export class Room {
@@ -62,9 +63,19 @@ export class Room {
       this.members = [{ pid: 0, name: this.name, char: this.char, host: true }];
       let tries = 0;
       let settled = false;
-      const attempt = () => {
+      const attempt = async () => {
         tries += 1;
-        this.code = String(1000 + Math.floor(Math.random() * 9000));
+        const code = String(100000 + Math.floor(Math.random() * 900000));
+        let sec;
+        try {
+          sec = await roomSecrets(code);   // 部屋の名前と鍵（伝言板では番号そのものは見えない）
+        } catch (e) {
+          settled = true;
+          reject(new Error('この端末では暗号の仕組みが使えません'));
+          return;
+        }
+        if (settled || this.closed) return;
+        this.code = code;
         const state = CONFIG.net.routes.map(() => 'wait');   // wait / open / fail
         const errors = [];
         const signals = [];
@@ -83,7 +94,8 @@ export class Room {
           }
         };
         CONFIG.net.routes.forEach((route, k) => {
-          const sig = createSignal(route, CONFIG.net.idPrefix + this.code, {
+          const sig = createSignal(route, CONFIG.net.idPrefix + sec.id, {
+            key: sec.key,
             onOpen: () => {
               state[k] = 'open';
               check();
@@ -160,7 +172,8 @@ export class Room {
     }
     if (entry.pid < 0) return;   // まだ迎え入れていない人の知らせは無視
     if (m.t === 'pong') {
-      const rtt = (performance.now() - m.a) / 1000;
+      if (typeof m.a !== 'number') return;
+      const rtt = Math.min(2, Math.max(0, (performance.now() - m.a) / 1000));
       entry.rtt = entry.rtt ? entry.rtt * 0.7 + rtt * 0.3 : rtt;
     } else if (m.t === 'prof') {
       const me = this.members.find((x) => x.pid === entry.pid);
@@ -245,6 +258,7 @@ export class Room {
     this.code = code;
     const routes = CONFIG.net.routes;
     const errors = [];
+    let sec = null;
     const tryRoute = (k) => {
       if (k >= routes.length || this.closed) {
         const notFound = errors.filter((e) => e.notFound).length;
@@ -256,7 +270,7 @@ export class Room {
         return Promise.reject(new Error(text + '（' + detail + '）'));
       }
       if (k > 0 && this.onProgress) this.onProgress(routes[k].name + 'で試しています…');
-      return this.joinVia(routes[k], code).catch((err) => {
+      return this.joinVia(routes[k], code, sec).catch((err) => {
         if (err.final) {
           this.close(true);
           throw err;
@@ -265,15 +279,19 @@ export class Room {
         return tryRoute(k + 1);
       });
     };
-    return tryRoute(0);
+    // 部屋番号から部屋の名前と鍵を作ってから試す
+    return roomSecrets(code).then((s) => {
+      sec = s;
+      return tryRoute(0);
+    }, () => Promise.reject(new Error('この端末では暗号の仕組みが使えません')));
   }
 
   // 1つのルートで部屋に入ってみる
-  joinVia(route, code) {
+  joinVia(route, code, sec) {
     return new Promise((resolve, reject) => {
       let settled = false;
       let link = null;
-      const hostId = CONFIG.net.idPrefix + code;
+      const hostId = CONFIG.net.idPrefix + sec.id;
       const myId = CONFIG.net.idPrefix + 'g' + Math.random().toString(36).slice(2, 12);
       const done = (err, opts) => {
         if (settled) return;
@@ -297,6 +315,7 @@ export class Room {
         done(route.name + '：' + (link && link.answered ? '時間切れ' : '部屋の返事なし'), { notFound: !(link && link.answered) });
       }, CONFIG.net.routeTimeout * 1000);
       const sig = createSignal(route, myId, {
+        key: sec.key,
         onOpen: () => {
           link = new Link({
             signal: sig,
@@ -348,12 +367,19 @@ export class Room {
   // ホストから届いた（ゲスト）
   guestReceive(m) {
     if (m.t === 'room') {
-      this.members = m.members;
-      this.course = m.course;
-      this.locked = m.locked;
+      // 届いた中身は、決まった形に整えてから使う
+      if (!Array.isArray(m.members)) return;
+      this.members = m.members.slice(0, CONFIG.net.maxPlayers).map((x) => ({
+        pid: Number.isInteger(x && x.pid) ? x.pid : -1,
+        name: cleanName(x && x.name),
+        char: clampChar(x && x.char),
+        host: !!(x && x.host)
+      }));
+      this.course = Number.isInteger(m.course) ? m.course : 0;
+      this.locked = !!m.locked;
       this.onChange();
     } else if (m.t === 'ping') {
-      this.hostLink.send({ t: 'pong', a: m.a });
+      if (typeof m.a === 'number') this.hostLink.send({ t: 'pong', a: m.a });
     } else if (m.t === 'bye') {
       this.lost('ホストが部屋を閉じました');
     } else {
