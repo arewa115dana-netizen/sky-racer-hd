@@ -435,7 +435,7 @@ export const MUSHROOM_COURSE = {
   data: MUSHROOM,
   theme: THEME,
   decor: FOREST_DECOR,
-  music: 'race',
+  music: 'mushroom',
   titleStart: 470,   // タイトルの背景：木の根の道の終わりから巨大キノコの空へ
   scenery: (track) => buildScenery(track)
 };

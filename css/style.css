@@ -2,9 +2,9 @@
   ファイル名 : style.css
   保存場所   : /css
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
-               レース中の表示（HUD）、タイトル画面（遊び方の説明つき）、キャラ選択（難しさつき）、
+               レース中の表示（HUD）、タイトル画面（遊び方の説明つき）、キャラ選択（難しさつき）、コース選択、
                縦向き警告、エラー表示の見た目
-  バージョン : 1.0.0（Phase12 Step12-3）
+  バージョン : 1.17.0（Phase17：グランプリの画面）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
@@ -852,7 +852,8 @@ body.in-menu #touch-ui {
 }
 
 /* ---- キャラクター選択画面 ---- */
-#charselect {
+#charselect,
+#courseselect {
   cursor: default;
   padding: 10px 16px;
   box-sizing: border-box;
@@ -861,7 +862,8 @@ body.in-menu #touch-ui {
 }
 
 /* 画面の中のボタン共通（指で押しやすい大きさ） */
-#charselect button {
+#charselect button,
+#courseselect button {
   font-family: inherit;
   color: #ffffff;
   cursor: pointer;
@@ -1210,4 +1212,344 @@ body.in-menu #touch-ui {
 .menu-bars i.on {
   background: linear-gradient(#ffe28a, #f0a020);
   border-color: #ffe9a8;
+}
+
+/* ---- コース選択画面（キャラ選択と同じ部品を使い、違う所だけ書く） ---- */
+.co-map-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 50%, rgba(160, 210, 255, 0.28), rgba(160, 210, 255, 0) 72%);
+}
+
+.co-map {
+  width: 150px;
+  height: 150px;
+}
+
+.co-stars {
+  margin-top: 4px;
+  font-size: 18px;
+  color: #ffd34a;
+  letter-spacing: 0.08em;
+  text-shadow: 1px 1px 0 #1a2a5a;
+}
+
+.co-stars i {
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.co-stars-label {
+  margin-right: 8px;
+  font-size: 14px;
+  color: #ffffff;
+  letter-spacing: 0.1em;
+}
+
+.co-best {
+  font-size: 15px;
+  color: #9fe8ff;
+}
+
+/* コースのアイコン（小さな地図） */
+.co-icon canvas {
+  image-rendering: auto;     /* 地図は線なのでなめらかに */
+}
+
+.co-icon.locked {
+  opacity: 0.55;
+}
+
+.cs-decide:disabled {
+  opacity: 0.4;
+  filter: grayscale(1);
+  cursor: default;
+}
+
+/* 決定のあと、コースを作っている間の表示 */
+.co-loading {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  letter-spacing: 0.2em;
+  background: rgba(8, 14, 36, 0.75);
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+#courseselect.loading .co-loading {
+  display: flex;
+}
+
+/* 結果画面のコース名 */
+.results-course {
+  margin-top: -2px;
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ---- コース選択のタブ（1コース／グランプリ） ---- */
+.co-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.co-tab {
+  min-width: 120px;
+  height: 34px;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 17px;
+}
+
+.co-tab.selected {
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border-color: #1a2a5a;
+}
+
+.co-cup-list {
+  font-size: 13px;
+  color: #ffe6a0;
+}
+
+/* グランプリのトロフィーの絵は、ドットのまま拡大 */
+#courseselect.cup-mode .co-map,
+#courseselect.cup-mode .co-icon canvas {
+  image-rendering: pixelated;
+}
+
+/* ---- 結果画面：グランプリの得点と総合順位 ---- */
+.results-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.results-body {
+  width: 100%;
+}
+
+.results-body .results-list {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* グランプリ中は、総合順位を横に並べるぶん結果の箱を広くする */
+.results.gp .results-inner {
+  width: 740px;
+}
+
+.results-name,
+.results-gp-name {
+  white-space: nowrap;
+  min-width: 7.5em;
+}
+
+.results-gp-pts {
+  white-space: nowrap;
+}
+
+.results-pts {
+  width: 3em;
+  text-align: right;
+  font-size: 14px;
+  color: #ffd34a;
+}
+
+.results-gp {
+  margin-top: 0;
+  min-width: 170px;
+  padding: 6px 10px;
+  background: rgba(10, 20, 50, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+}
+
+.results-gp-title {
+  font-size: 14px;
+  color: #ffd34a;
+  letter-spacing: 0.2em;
+}
+
+.results-gp-row {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.results-gp-row.me {
+  color: #9fe8ff;
+}
+
+.results-gp-rank {
+  width: 1.5em;
+  text-align: right;
+}
+
+.results-gp-name {
+  flex: 1 1 auto;
+}
+
+/* ---- グランプリの紹介カード（レースとレースの間） ---- */
+.gp-card {
+  cursor: default;
+  background: rgba(8, 14, 36, 0.82);
+  animation: title-in 0.3s ease both;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.gp-card-cup {
+  font-size: 22px;
+  letter-spacing: 0.3em;
+}
+
+.gp-card-no {
+  margin-top: 6px;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+}
+
+.gp-card-name {
+  margin-top: 10px;
+  font-size: clamp(28px, 6vw, 48px);
+  letter-spacing: 0.1em;
+}
+
+.gp-card-stars {
+  margin-top: 6px;
+  font-size: 20px;
+  color: #ffd34a;
+}
+
+/* ---- グランプリの最終結果（表彰台） ---- */
+.gp-result {
+  cursor: default;
+  background: rgba(8, 14, 36, 0.7);
+  animation: title-in 0.4s ease both;
+}
+
+.gp-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  background: rgba(16, 30, 70, 0.9);
+  border: 3px solid #1a2a5a;
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  transform-origin: center center;
+}
+
+.gp-title {
+  font-size: 22px;
+  letter-spacing: 0.2em;
+  color: #ffe27a;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.gp-podium {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.gp-stand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 110px;
+}
+
+.gp-face {
+  width: 72px;
+  height: 72px;
+  image-rendering: pixelated;
+}
+
+.gp-stand.place1 .gp-face {
+  animation: gp-jump 0.9s ease-in-out infinite;
+}
+
+@keyframes gp-jump {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.gp-name {
+  font-size: 14px;
+}
+
+.gp-stand.me .gp-name {
+  color: #9fe8ff;
+}
+
+.gp-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 4px;
+  border: 3px solid #1a2a5a;
+  border-radius: 4px 4px 0 0;
+  font-size: 26px;
+  color: #2a1a00;
+}
+
+.gp-block small {
+  font-size: 13px;
+}
+
+.gp-stand.place1 .gp-block { height: 74px; background: linear-gradient(#ffe28a, #e0a830); }
+.gp-stand.place2 .gp-block { height: 54px; background: linear-gradient(#f4f8ff, #b8c4d4); }
+.gp-stand.place3 .gp-block { height: 40px; background: linear-gradient(#ffc898, #d0804a); }
+
+.gp-mine {
+  font-size: 17px;
+}
+
+.gp-new {
+  margin-left: 8px;
+  color: #ff8a5a;
+  animation: title-blink 1s ease-in-out infinite;
+}
+
+.gp-list {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 2px 24px;
+  font-size: 13px;
+}
+
+.gp-row {
+  display: flex;
+  gap: 10px;
+}
+
+.gp-row span:nth-child(2) {
+  min-width: 8em;
+}
+
+.gp-row.me {
+  color: #9fe8ff;
+}
+
+.gp-row small {
+  margin-left: 4px;
+  font-size: 11px;
+  color: #ffd34a;
+}
+
+.gp-result .results-btn {
+  font-family: inherit;
 }

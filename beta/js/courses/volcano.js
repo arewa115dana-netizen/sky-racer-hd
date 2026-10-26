@@ -513,7 +513,7 @@ export const VOLCANO_COURSE = {
   data: VOLCANO,
   theme: THEME,
   decor: VOLCANO_DECOR,
-  music: 'race',
+  music: 'volcano',
   titleStart: 220,   // タイトルの背景：斜面を上って火口へ
   keepOut: [{ x: VOLCANO_CENTER.x, z: VOLCANO_CENTER.z, r: 225 }],
   scenery: (track) => buildScenery(track)

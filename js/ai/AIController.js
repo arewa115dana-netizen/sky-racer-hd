@@ -3,7 +3,7 @@
   保存場所   : /js/ai
   役割       : CPUの思考。プレイヤーと同じ「入力状態」（旋回・上下・ドリフト・ブースト）を
                作るだけで、動きはプレイヤーと同じ物理（Racer）で行う（ズルをしない）
-  バージョン : 0.7.1（Phase7 Step7-1）
+  バージョン : 1.16.0（Phase16：柵のない端の近くではドリフトをやめる）
 
   考え方
     ・少し先のコースの曲がり具合を見て、カーブの内側寄りの走行ラインを決める
@@ -123,9 +123,15 @@ export class AIController {
     const k = t.curvatureAt(r.s + a.lookAheadBase);
     const sign = k > 0 ? -1 : 1;   // 左カーブ（k > 0）なら左（-1）へドリフト
 
+    // 柵のない所で、ドリフトで曲がる側の端に近づきすぎたら離す（曲がりすぎて落ちないように）
+    const ahead = r.s + a.lookAheadBase * 0.5;
+    const open = t.edgeAt(r.s) === 'open' || t.edgeAt(ahead) === 'open';
+    const nearEdge = open && this.driftSign !== 0 &&
+      r.x * this.driftSign > t.widthAt(r.s) / 2 - a.openEdgeMargin;
+
     if (this.driftSign !== 0) {
-      // カーブがゆるくなった、または向きが変わったら離す
-      if (Math.abs(k) < a.driftCurvature * 0.4 || sign !== this.driftSign) {
+      // カーブがゆるくなった、向きが変わった、柵のない端に近い、のどれかなら離す
+      if (Math.abs(k) < a.driftCurvature * 0.4 || sign !== this.driftSign || nearEdge) {
         this.driftSign = 0;
         this.curveDecision = null;
         return false;

@@ -1,9 +1,10 @@
 /*
   ファイル名 : Game.js
   保存場所   : /js/core
-  役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音・コース・背景を準備し、
+  役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音を準備し、
+               選ばれたコースの世界（World：コース・背景・光・空気感）を読み込み、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 0.11.3（Phase11 Step11-3）
+  バージョン : 1.17.0（Phase17：グランプリのレース）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -17,14 +18,11 @@ import { Input } from './Input.js';
 import { Debug } from './Debug.js';
 import { Quality } from './Quality.js';
 import { AudioManager } from '../audio/AudioManager.js';
-import { Track } from '../world/Track.js';
-import { SKY_TEMPLE } from '../world/CourseData.js';
-import { buildCourse } from '../world/CourseBuilder.js';
-import { Environment } from '../world/Environment.js';
+import { World } from '../world/World.js';
+import { COURSES } from '../courses/Courses.js';
 import { CHARACTERS } from '../entities/Characters.js';
 import { buildAtlas } from '../art/PixelArt.js';
 import { CameraRig } from '../render/CameraRig.js';
-import { Atmosphere } from '../render/Atmosphere.js';
 import { PostFX } from '../render/PostFX.js';
 import { RaceSession } from '../systems/RaceSession.js';
 import { Screens } from './Screens.js';
@@ -44,9 +42,10 @@ export class Game {
     this.debug = null;
     this.quality = null;
     this.audio = null;
-    this.track = null;
-    this.environment = null;
-    this.atmosphere = null;    // 光の筋・光る粒・周辺減光
+    this.world = null;         // 今のコースの世界（World）
+    this.track = null;         // 今のコースの中心線（world.track と同じ）
+    this.environment = null;   // 今のコースの背景（world.environment と同じ）
+    this.atmosphere = null;    // 光の筋・光る粒・周辺減光（world.atmosphere と同じ）
     this.postfx = null;        // 画面全体の仕上げ（ティルトシフト・ブルーム・色づくり）
     this.atlas = null;
     this.session = null;       // 今のレース（RaceSession）
@@ -76,15 +75,6 @@ export class Game {
     this.audio = new AudioManager();
     this.setupScene();
 
-    // コース：制御点から中心線を計算し、見た目を自動で作る
-    this.track = new Track(SKY_TEMPLE);
-    this.scene.add(buildCourse(this.track));
-
-    // 背景：空・雲海・浮遊島・遺跡・神殿
-    this.environment = new Environment(this.scene, this.quality, this.track);
-    // HD-2Dらしい空気感（光の筋・光る粒・周辺減光）
-    this.atmosphere = new Atmosphere(this.scene, this.quality);
-
     // 全キャラクターのドット絵を1枚の画像にまとめて作る
     this.atlas = buildAtlas(CHARACTERS);
     this.cameraRig = new CameraRig(this.camera);
@@ -94,6 +84,9 @@ export class Game {
     this.input.onPause = () => this.screens.togglePauseMenu();
     this.debug = new Debug(this.renderer);
     this.screens = new Screens(this);
+
+    // 前回選んだコースの世界を作る（タイトルの背景にもなる）
+    this.loadCourse(this.screens.courseIndex);
     this.screens.applyAllSettings();   // 保存してある設定（音量・省電力など）を反映
     this.setupEvents();
 
@@ -109,16 +102,46 @@ export class Game {
     this.precompile();
     this.loop.start();
 
-    // 結果表が出ているときは Enter キーでも「もう一度」
+    // 結果表が出ているときは Enter キーでも「もう一度」（グランプリ中は「次のレースへ」）
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Enter' && this.session && this.session.resultsShown) {
-        this.startRace(this.screens.charIndex);
+        if (this.session.gp) this.screens.gpNext();
+        else this.startRace(this.screens.charIndex);
       }
     });
   }
 
+  // ---- コースを読み込む（今と同じコースなら何もしない）。読み込んだら true ----
+  // 前の世界を片付けてから新しい世界を作る。レース中には呼ばないこと（先にレースを片付ける）
+  loadCourse(index) {
+    const course = COURSES[index];
+    if (!course || !course.ready) return false;
+    if (this.world && this.world.course === course) return false;
+    if (this.session) {
+      this.session.dispose();
+      this.session = null;
+    }
+    if (this.world) this.world.dispose();
+
+    this.world = new World(this.scene, this.quality, course);
+    this.track = this.world.track;
+    this.environment = this.world.environment;
+    this.atmosphere = this.world.atmosphere;
+    this.postfx.applyTheme();
+    this.courseIndex = index;
+
+    // 自動軽量化で減らした物を、新しい世界でも同じように減らす
+    // （1段目の仕上げ処理と、最後の30回にそろえる段は世界と関係ないので、そのまま続いている）
+    for (let k = 1; k < Math.min(this.shedLevel, SHED_STEPS.length - 1); k += 1) {
+      SHED_STEPS[k].run(this);
+    }
+    this.debug.log('コース：' + course.name);
+    return true;
+  }
+
   // ---- レースを始める（前のレースがあれば片付けてから） ----
-  startRace(playerCharIndex) {
+  // gp を渡すとグランプリのレースになる（結果画面に得点を出し、「次のレースへ」で onNext を呼ぶ）
+  startRace(playerCharIndex, gp = null) {
     if (this.session) {
       this.session.dispose();
     }
@@ -127,13 +150,16 @@ export class Game {
     this.session = new RaceSession({
       scene: this.scene,
       track: this.track,
+      course: this.world.course,
+      gp,
+      onNext: gp ? () => this.screens.gpNext() : null,
       atlas: this.atlas,
       camera: this.camera,
       cameraRig: this.cameraRig,
       audio: this.audio,
       debug: this.debug,
       playerCharIndex,
-      onRetry: () => this.startRace(this.screens.charIndex),
+      onRetry: () => this.startRace(this.screens.charIndex, gp),
       onSelect: () => this.screens.showCharacterSelect(),
       onTitle: () => this.screens.showTitle()
     });
@@ -249,12 +275,7 @@ export class Game {
       r.far
     );
 
-    // ライトは2つだけ
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x5577aa, 1.2);
-    this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff2cc, 1.6);
-    sun.position.set(30, 50, 20);
-    this.scene.add(sun);
+    // 光はコースごとの色にするので、World が作る
   }
 
   // ---- 画面の変化・キー操作への対応 ----

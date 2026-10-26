@@ -5,7 +5,7 @@
                  1. ティルトシフト … 画面の上と下をぼかし、真ん中（レーサーのあたり）だけくっきり
                  2. ブルーム       … 明るい所の光が、まわりにふわっとにじむ
                  3. 色づくり       … コントラストと鮮やかさを少し上げ、全体をあたたかい色に
-  バージョン : 0.8.4（Phase8 Step8-4）
+  バージョン : 1.13.0（Phase13 Step13-1：コースごとの色づくり）
 
   しくみ（軽くするための工夫）
     ・まず画面を「絵」として1枚に描く
@@ -163,6 +163,18 @@ export class PostFX {
       warmTint: { value: new THREE.Vector3(p.warmTint[0], p.warmTint[1], p.warmTint[2]) },
       shadowTint: { value: new THREE.Vector3(p.shadowTint[0], p.shadowTint[1], p.shadowTint[2]) }
     });
+  }
+
+  // コースのテーマの色づくり（コントラスト・鮮やかさ・色味・にじみ）を反映する（コースを作り直したとき）
+  applyTheme() {
+    const p = CONFIG.postfx;
+    const u = this.compositeMat.uniforms;
+    u.bloomThreshold.value = p.bloomThreshold;
+    u.bloomStrength.value = p.bloomStrength;
+    u.contrast.value = p.contrast;
+    u.saturation.value = p.saturation;
+    u.warmTint.value.set(p.warmTint[0], p.warmTint[1], p.warmTint[2]);
+    u.shadowTint.value.set(p.shadowTint[0], p.shadowTint[1], p.shadowTint[2]);
   }
 
   // ON / OFF の切り替え（PCの F キー用）

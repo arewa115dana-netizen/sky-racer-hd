@@ -6,7 +6,7 @@
                                       崩れたアーチは柱の上が欠け、まわりに石のかけらが浮かぶ
                  ・神殿の柱         … 土台・溝の入った丸い柱・柱頭
                  ・ゴールの門       … 溝の入った2本の柱、梁、上に三角の飾り（破風）
-  バージョン : 0.8.7（Phase8 Step8-7）
+  バージョン : 1.14.0（Phase14：素材をコースごとに作り直す・ピラミッドの形・石の模様を外から使えるように）
   メモ       : 本殿・かがり火・旗・ツタなどは Landmarks.js が作る。
                そのために、形をためる入れ物（ShapeBuilder）と石の素材（stoneMaterials）を外から使えるようにし、
                旗とツタを付ける場所（anchors）を記録して返す
@@ -60,8 +60,13 @@ export function addMeshes(group, builders) {
   }
 }
 
-// 石の素材（遺跡の石・溝の柱・切り石）。一度だけ作って使い回す
+// 石の素材（遺跡の石・溝の柱・切り石）。1つの世界の中では一度だけ作って使い回す
+// （コースを切り替えるときは World.js が resetStoneMaterials を呼び、新しいコースの色で作り直す）
 let cachedMaterials = null;
+export function resetStoneMaterials() {
+  cachedMaterials = null;
+}
+
 export function stoneMaterials() {
   if (cachedMaterials) return cachedMaterials;
   const e = CONFIG.environment;
@@ -211,10 +216,17 @@ function buildGate(track, flute, block) {
 export class ShapeBuilder {
   constructor(tile) {
     this.tile = tile;          // 模様を何メートルごとにくり返すか
+    this.tint = [1, 1, 1];     // これから足す形の色（赤・緑・青の倍率。家の壁や屋根の色分けに使う）
     this.positions = [];
     this.normals = [];
     this.uvs = [];
     this.colors = [];
+  }
+
+  // これから足す形の色を決める（16進の色。0xffffff で元の色）
+  setTint(hex) {
+    this.tint = [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+    return this;
   }
 
   isEmpty() {
@@ -230,7 +242,7 @@ export class ShapeBuilder {
       this.positions.push(v[0], v[1], v[2]);
       this.normals.push(normal[0], normal[1], normal[2]);
       this.uvs.push(uv[0] / t, uv[1] / t);
-      this.colors.push(k, k, k);
+      this.colors.push(k * this.tint[0], k * this.tint[1], k * this.tint[2]);
     }
   }
 
@@ -272,8 +284,8 @@ export class ShapeBuilder {
   }
 
   // 円柱（下の中心・半径・高さ）。模様が一周でちょうどつながるよう、くり返し回数を整数にする
-  cylinder(cx, by, cz, r, h, shade) {
-    const segments = 16;
+  // segments を渡すと角の数を変えられる（6 = 六角柱。玄武岩の柱など）。cap = true で上にふたをする
+  cylinder(cx, by, cz, r, h, shade, segments = 16, cap = false) {
     const around = Math.max(1, Math.round((Math.PI * 2 * r) / this.tile)) * this.tile;
     for (let k = 0; k < segments; k += 1) {
       const a0 = (k / segments) * Math.PI * 2;
@@ -290,6 +302,11 @@ export class ShapeBuilder {
         [cx + x1, by, cz + z1], [cx + x0, by, cz + z0], [cx + x0, by + h, cz + z0], [cx + x1, by + h, cz + z1],
         n, [u1, 0], [u0, 0], [u0, h], [u1, h], shade
       );
+      if (cap) {
+        const top = [cx, by + h, cz];
+        this.quad([cx + x1, by + h, cz + z1], [cx + x0, by + h, cz + z0], top, top, [0, 1, 0],
+          [x1, z1], [x0, z0], [0, 0], [0, 0], shade);
+      }
     }
   }
 
@@ -316,6 +333,69 @@ export class ShapeBuilder {
       [0, 0], [d, 0], [d, slope], [0, slope], shade);
   }
 
+  // 四角すい（ピラミッド）：底の中心・幅・高さ・奥行き。4つの斜めの面
+  pyramid(cx, by, cz, w, h, d, yaw, shade) {
+    const cosY = Math.cos(yaw);
+    const sinY = Math.sin(yaw);
+    const tr = (x, y, z) => [cx + x * cosY + z * sinY, by + y, cz - x * sinY + z * cosY];
+    const rn = (x, y, z) => [x * cosY + z * sinY, y, -x * sinY + z * cosY];
+    const hw = w / 2;
+    const hd = d / 2;
+    const top = tr(0, h, 0);
+    const sx = Math.hypot(hd, h);   // 前後の面の斜めの長さ
+    const sz = Math.hypot(hw, h);   // 左右の面の斜めの長さ
+    // 前・後ろ・右・左（三角は、頂点を2回使った四角として足す）
+    this.quad(tr(-hw, 0, hd), tr(hw, 0, hd), top, top, rn(0, hd / sx, h / sx),
+      [0, 0], [w, 0], [hw, sx], [hw, sx], shade);
+    this.quad(tr(hw, 0, -hd), tr(-hw, 0, -hd), top, top, rn(0, hd / sx, -h / sx),
+      [0, 0], [w, 0], [hw, sx], [hw, sx], shade * 0.8);
+    this.quad(tr(hw, 0, hd), tr(hw, 0, -hd), top, top, rn(h / sz, hw / sz, 0),
+      [0, 0], [d, 0], [hd, sz], [hd, sz], shade * 0.92);
+    this.quad(tr(-hw, 0, -hd), tr(-hw, 0, hd), top, top, rn(-h / sz, hw / sz, 0),
+      [0, 0], [d, 0], [hd, sz], [hd, sz], shade * 0.86);
+  }
+
+  // 下向きの四角すい（つらら・結晶の下半分）：上の面の中心・幅・下への長さ・奥行き
+  pyramidDown(cx, ty, cz, w, h, d, yaw, shade) {
+    const cosY = Math.cos(yaw);
+    const sinY = Math.sin(yaw);
+    const tr = (x, y, z) => [cx + x * cosY + z * sinY, ty + y, cz - x * sinY + z * cosY];
+    const rn = (x, y, z) => [x * cosY + z * sinY, y, -x * sinY + z * cosY];
+    const hw = w / 2;
+    const hd = d / 2;
+    const tip = tr(0, -h, 0);
+    const sx = Math.hypot(hd, h);
+    const sz = Math.hypot(hw, h);
+    this.quad(tr(hw, 0, hd), tr(-hw, 0, hd), tip, tip, rn(0, -hd / sx, h / sx),
+      [0, 0], [w, 0], [hw, sx], [hw, sx], shade);
+    this.quad(tr(-hw, 0, -hd), tr(hw, 0, -hd), tip, tip, rn(0, -hd / sx, -h / sx),
+      [0, 0], [w, 0], [hw, sx], [hw, sx], shade * 0.8);
+    this.quad(tr(hw, 0, -hd), tr(hw, 0, hd), tip, tip, rn(h / sz, -hw / sz, 0),
+      [0, 0], [d, 0], [hd, sz], [hd, sz], shade * 0.9);
+    this.quad(tr(-hw, 0, hd), tr(-hw, 0, -hd), tip, tip, rn(-h / sz, -hw / sz, 0),
+      [0, 0], [d, 0], [hd, sz], [hd, sz], shade * 0.85);
+  }
+
+  // 円すい（塔のとがった屋根）：底の中心・半径・高さ
+  cone(cx, by, cz, r, h, shade) {
+    const segments = 12;
+    const slope = Math.hypot(r, h);
+    const around = Math.max(1, Math.round((Math.PI * 2 * r) / this.tile)) * this.tile;
+    const top = [cx, by + h, cz];
+    for (let k = 0; k < segments; k += 1) {
+      const a0 = (k / segments) * Math.PI * 2;
+      const a1 = ((k + 1) / segments) * Math.PI * 2;
+      const am = (a0 + a1) / 2;
+      const n = [Math.cos(am) * h / slope, r / slope, Math.sin(am) * h / slope];
+      const u0 = (k / segments) * around;
+      const u1 = ((k + 1) / segments) * around;
+      this.quad(
+        [cx + Math.cos(a1) * r, by, cz + Math.sin(a1) * r], [cx + Math.cos(a0) * r, by, cz + Math.sin(a0) * r], top, top,
+        n, [u1, 0], [u0, 0], [(u0 + u1) / 2, slope], [(u0 + u1) / 2, slope], shade
+      );
+    }
+  }
+
   build() {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
@@ -331,7 +411,7 @@ export class ShapeBuilder {
 // ============================================================
 
 // 色の表から、模様の画像を作る（くり返して貼れる設定にする）
-function makeTexture(grid) {
+export function makeTexture(grid) {
   const canvas = document.createElement('canvas');
   canvas.width = TEX;
   canvas.height = TEX;
@@ -354,7 +434,7 @@ function makeTexture(grid) {
 }
 
 // 遺跡の石：ずらして積んだ石のブロック。目地・ひび・苔
-function drawRuinStone(baseHex, random) {
+export function drawRuinStone(baseHex, random) {
   const b = CONFIG.buildings;
   const grid = [];
   const shades = [0.82, 0.92, 1.0, 1.08];
@@ -409,7 +489,7 @@ function drawRuinStone(baseHex, random) {
 }
 
 // 神殿の柱：縦の溝（明・明・中・暗をくり返す）と、うっすらした石目
-function drawFlutedMarble(baseHex, random) {
+export function drawFlutedMarble(baseHex, random) {
   const grid = [];
   const pattern = [1.06, 1.1, 1.0, 0.86];
   for (let y = 0; y < TEX; y += 1) {
@@ -432,7 +512,7 @@ function drawFlutedMarble(baseHex, random) {
 }
 
 // 神殿の石材：大きな切り石を積んだ模様（目地は細く明るめ）
-function drawMarbleBlocks(baseHex, random) {
+export function drawMarbleBlocks(baseHex, random) {
   const grid = [];
   for (let y = 0; y < TEX; y += 1) grid.push(new Array(TEX).fill(baseHex));
   const rowH = 8;
@@ -463,7 +543,7 @@ function scaleColor(hex, k) {
 }
 
 // 毎回同じ並びになる乱数
-function seededRandom(seed) {
+export function seededRandom(seed) {
   let s = seed;
   return () => {
     s = (s * 16807) % 2147483647;

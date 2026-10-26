@@ -466,7 +466,7 @@ export const HARBOR_COURSE = {
   data: HARBOR,
   theme: THEME,
   decor: HARBOR_DECOR,
-  music: 'race',
+  music: 'harbor',
   titleStart: 60,   // タイトルの背景：広場から坂の町並みへ
   keepOut: [{ x: LIGHTHOUSE.x, z: LIGHTHOUSE.z, r: 30 }],
   scenery: (track) => buildScenery(track)

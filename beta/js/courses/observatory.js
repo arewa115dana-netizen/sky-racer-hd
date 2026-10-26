@@ -347,7 +347,7 @@ export const OBSERVATORY_COURSE = {
   data: OBSERVATORY,
   theme: THEME,
   decor: OBS_DECOR,
-  music: 'race',
+  music: 'observatory',
   titleStart: 260,   // タイトルの背景：らせんの坂から塔を見上げる
   keepOut: [{ x: TOWER.x, z: TOWER.z, r: 120 }],
   scenery: (track) => buildScenery(track)

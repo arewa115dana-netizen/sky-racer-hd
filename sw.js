@@ -4,7 +4,7 @@
   役割       : サービスワーカー。
                  1. 通信できるとき … GitHub の最新版を必ず使う（古いファイルが使われ続ける問題を防ぐ）
                  2. 通信できないとき … スマホに保存しておいた分で動かす（オフラインでも遊べる）
-  バージョン : 0.12.2（Phase12 Step12-2）
+  バージョン : 2.0.0（Phase17：グランプリのファイルを追加。保存場所を作り直す）
 
   しくみ
     ・このサイト自身のファイル（html / css / js / 画像）
@@ -16,7 +16,7 @@
   メモ       : 保存場所の名前（CACHE_NAME）を変えると、古い保存分はすべて消えて作り直される
 */
 
-const CACHE_NAME = 'sky-racer-v1';
+const CACHE_NAME = 'sky-racer-v2';
 
 // 通信が遅いときに、保存分に切り替えるまでの秒数（保存分がないときは通信を待ち続ける）
 const NETWORK_TIMEOUT = 4;
@@ -48,6 +48,19 @@ const PRECACHE = [
   'js/core/Loop.js',
   'js/core/Quality.js',
   'js/core/Screens.js',
+  'js/courses/Courses.js',
+  'js/courses/desert.js',
+  'js/courses/desertData.js',
+  'js/courses/harbor.js',
+  'js/courses/harborData.js',
+  'js/courses/ice.js',
+  'js/courses/iceData.js',
+  'js/courses/mushroom.js',
+  'js/courses/mushroomData.js',
+  'js/courses/observatory.js',
+  'js/courses/observatoryData.js',
+  'js/courses/volcano.js',
+  'js/courses/volcanoData.js',
   'js/entities/Characters.js',
   'js/entities/Racer.js',
   'js/entities/RacerSprite.js',
@@ -57,8 +70,12 @@ const PRECACHE = [
   'js/render/PostFX.js',
   'js/systems/Collision.js',
   'js/systems/RaceManager.js',
+  'js/systems/GrandPrix.js',
   'js/systems/RaceSession.js',
+  'js/systems/Records.js',
   'js/ui/CharacterSelect.js',
+  'js/ui/CourseSelect.js',
+  'js/ui/GrandPrixResult.js',
   'js/ui/HUD.js',
   'js/ui/Menu.js',
   'js/ui/Title.js',
@@ -69,7 +86,9 @@ const PRECACHE = [
   'js/world/Environment.js',
   'js/world/Landmarks.js',
   'js/world/Rings.js',
+  'js/world/Theme.js',
   'js/world/Track.js',
+  'js/world/World.js',
   'https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js',
   'https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.core.js'
 ];

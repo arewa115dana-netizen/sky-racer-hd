@@ -6,8 +6,9 @@
                  1. 光の筋   … 太陽から放射状に伸びるうっすらした光（太陽が画面にあるときだけ）
                  2. 光る粒   … カメラのまわりを漂う小さな光（花粉・魔力のような粒）
                  3. 周辺減光 … 画面の四隅を少し暗くして、真ん中に目が行くようにする
-  バージョン : 0.11.2（Phase11 Step11-2）
-  メモ       : 画質 low の端末では光の筋と光る粒を出さない（周辺減光だけ）
+  バージョン : 1.13.0（Phase13 Step13-1：コースを切り替えるときに片付けられるように）
+  メモ       : 画質 low の端末では光の筋と光る粒を出さない（周辺減光だけ）。
+               色はコースのテーマ（config.js の atmosphere）で変わるので、コースごとに作り直す
 */
 
 import * as THREE from 'three';
@@ -142,11 +143,19 @@ export class Atmosphere {
     if (this.motes) {
       this.scene.remove(this.motes);
       this.motes.geometry.dispose();
+      if (this.motes.material.map) this.motes.material.map.dispose();
       this.motes.material.dispose();
       this.motes = null;
       changed = true;
     }
     return changed;
+  }
+
+  // ---- 片付け（別のコースに切り替えるとき） ----
+  dispose() {
+    this.reduce();
+    if (this.vignette && this.vignette.parentNode) this.vignette.parentNode.removeChild(this.vignette);
+    this.vignette = null;
   }
 
   // ---- 毎フレーム（カメラを動かした後に呼ぶ） ----

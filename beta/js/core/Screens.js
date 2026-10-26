@@ -2,10 +2,11 @@
   ファイル名 : Screens.js
   保存場所   : /js/core
   役割       : 画面の流れの管理。タイトル → キャラ選択 → コース選択 → レース、と一時停止メニュー。
+               グランプリ（カップ）では、レース → 結果（得点）→ 紹介カード → 次のレース … → 最終結果。
                設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラ・コースを
                スマホに保存して反映する。
                画面に合わせてBGMを切り替える（タイトル・選択画面はタイトル曲、レースはコースの曲）
-  バージョン : 1.13.0（Phase13 Step13-2：コース選択）
+  バージョン : 1.17.0（Phase17：グランプリ）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -16,8 +17,10 @@ import { CHARACTERS } from '../entities/Characters.js';
 import { Title } from '../ui/Title.js';
 import { CharacterSelect } from '../ui/CharacterSelect.js';
 import { CourseSelect } from '../ui/CourseSelect.js';
-import { COURSES, courseIndexOf } from '../courses/Courses.js';
+import { COURSES, CUPS, courseIndexOf } from '../courses/Courses.js';
 import { loadBest } from '../systems/Records.js';
+import { GrandPrix, loadCupBest } from '../systems/GrandPrix.js';
+import { GrandPrixResult } from '../ui/GrandPrixResult.js';
 import { PauseMenu } from '../ui/Menu.js';
 
 const CHAR_KEY = 'skyRacer.character';
@@ -44,6 +47,8 @@ export class Screens {
 
     this.charIndex = loadCharIndex();
     this.courseIndex = loadCourseIndex();
+    this.gp = null;               // グランプリ中なら、その進み具合
+    this.selectMode = 'course';   // コース選択画面で前回開いていたタブ
     this.settings = loadSettings();
   }
 
@@ -103,6 +108,7 @@ export class Screens {
   // ---- タイトル ----
   showTitle() {
     const g = this.game;
+    this.gp = null;
     if (g.session) {
       g.session.dispose();
       g.session = null;
@@ -122,6 +128,7 @@ export class Screens {
   // ---- キャラクター選択 ----
   showCharacterSelect() {
     const g = this.game;
+    this.gp = null;
     if (g.session) {
       g.session.dispose();
       g.session = null;
@@ -155,9 +162,19 @@ export class Screens {
       courses: COURSES,
       index: this.courseIndex,
       getBest: (id) => loadBest(id),
+      cups: CUPS,
+      getCupBest: (id) => loadCupBest(id),
+      mode: this.selectMode,
+      onDecideCup: (cupIndex) => {
+        this.selectMode = 'cup';
+        select.close();
+        this.startGp(cupIndex);
+      },
       onSound: (name) => g.audio.play(name),
       onBack: () => this.showCharacterSelect(),
       onDecide: (index) => {
+        this.selectMode = 'course';
+        this.gp = null;
         this.courseIndex = index;
         saveCourseIndex(index);
         // 別のコースなら作り直す。重い処理の前に「準備中…」を画面に出しておく
@@ -176,6 +193,83 @@ export class Screens {
         if (needLoad) requestAnimationFrame(() => requestAnimationFrame(go));
         else go();
       }
+    });
+  }
+
+  // ---- グランプリ ----
+  startGp(cupIndex) {
+    this.gp = new GrandPrix(CUPS[cupIndex], this.charIndex);
+    this.startGpRace();
+  }
+
+  // 今のレースの紹介カードを出し、その間にコースを読み込んで、レースを始める
+  startGpRace() {
+    const g = this.game;
+    const gp = this.gp;
+    const index = courseIndexOf(gp.courseId);
+    const course = COURSES[index];
+    this.enterMenuMode();
+    g.setState('SELECT');
+    if (g.session) {
+      g.session.dispose();
+      g.session = null;
+    }
+    const card = document.createElement('div');
+    card.className = 'screen gp-card';
+    card.innerHTML = '<div class="gp-card-cup" style="color:' + gp.cup.color + '">' + gp.cup.name + '</div>' +
+      '<div class="gp-card-no">第' + (gp.raceIndex + 1) + '戦 / ' + gp.raceCount + '</div>' +
+      '<div class="gp-card-name">' + course.name + '</div>' +
+      '<div class="gp-card-stars">' + '★'.repeat(course.stars || 1) + '</div>';
+    document.body.appendChild(card);
+    const shownAt = performance.now();
+    // 表示が出てから（2フレーム後に）作り始め、カードは最低1.6秒見せる
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (g.loadCourse(index)) this.titleTime = 0;
+      const wait = Math.max(0, 1600 - (performance.now() - shownAt));
+      setTimeout(() => {
+        if (this.gp !== gp) {   // 待っている間にやめていた
+          card.remove();
+          return;
+        }
+        card.classList.add('hide');
+        setTimeout(() => card.remove(), 450);
+        this.leaveMenuMode();
+        g.startRace(this.charIndex, gp);
+      }, wait);
+    }));
+  }
+
+  // 結果画面の「次のレースへ」（最後のレースなら最終結果へ）
+  gpNext() {
+    const gp = this.gp;
+    if (!gp) return;
+    if (gp.next()) {
+      this.startGpRace();
+    } else {
+      this.showGpResult();
+    }
+  }
+
+  showGpResult() {
+    const g = this.game;
+    const gp = this.gp;
+    const newRecord = gp.saveResult();
+    const standings = gp.standings();
+    if (g.session) {
+      g.session.dispose();
+      g.session = null;
+    }
+    this.enterMenuMode();
+    g.setState('SELECT');
+    g.audio.playMusic('title');
+    g.audio.play('goal');
+    new GrandPrixResult({
+      cup: gp.cup,
+      standings,
+      newRecord,
+      atlasCanvas: g.atlas.texture.image,
+      onAgain: () => this.startGp(CUPS.indexOf(gp.cup)),
+      onTitle: () => this.showTitle()
     });
   }
 
@@ -234,7 +328,8 @@ export class Screens {
       onResume: () => this.closePauseMenu(true),
       onRetry: () => {
         this.closePauseMenu(true);   // 操作部品を戻してから、最初からやり直す
-        g.startRace(this.charIndex);
+        if (this.gp) this.gp.retry();
+        g.startRace(this.charIndex, this.gp);
       },
       onSelect: () => {
         this.closePauseMenu(false);

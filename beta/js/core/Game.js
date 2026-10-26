@@ -4,7 +4,7 @@
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音を準備し、
                選ばれたコースの世界（World：コース・背景・光・空気感）を読み込み、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 1.13.0（Phase13 Step13-1：コースを切り替えられるように）
+  バージョン : 1.17.0（Phase17：グランプリのレース）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -102,10 +102,11 @@ export class Game {
     this.precompile();
     this.loop.start();
 
-    // 結果表が出ているときは Enter キーでも「もう一度」
+    // 結果表が出ているときは Enter キーでも「もう一度」（グランプリ中は「次のレースへ」）
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Enter' && this.session && this.session.resultsShown) {
-        this.startRace(this.screens.charIndex);
+        if (this.session.gp) this.screens.gpNext();
+        else this.startRace(this.screens.charIndex);
       }
     });
   }
@@ -139,7 +140,8 @@ export class Game {
   }
 
   // ---- レースを始める（前のレースがあれば片付けてから） ----
-  startRace(playerCharIndex) {
+  // gp を渡すとグランプリのレースになる（結果画面に得点を出し、「次のレースへ」で onNext を呼ぶ）
+  startRace(playerCharIndex, gp = null) {
     if (this.session) {
       this.session.dispose();
     }
@@ -149,13 +151,15 @@ export class Game {
       scene: this.scene,
       track: this.track,
       course: this.world.course,
+      gp,
+      onNext: gp ? () => this.screens.gpNext() : null,
       atlas: this.atlas,
       camera: this.camera,
       cameraRig: this.cameraRig,
       audio: this.audio,
       debug: this.debug,
       playerCharIndex,
-      onRetry: () => this.startRace(this.screens.charIndex),
+      onRetry: () => this.startRace(this.screens.charIndex, gp),
       onSelect: () => this.screens.showCharacterSelect(),
       onTitle: () => this.screens.showTitle()
     });

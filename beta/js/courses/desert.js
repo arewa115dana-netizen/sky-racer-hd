@@ -433,7 +433,7 @@ export const DESERT_COURSE = {
   data: DESERT,
   theme: THEME,
   decor: DESERT_DECOR,
-  music: 'race',
+  music: 'desert',
   titleStart: 380,   // タイトルの背景で、カメラが飛び始める位置（砂丘の終わり → 大ピラミッド）
   // 背景の浮遊島を置かない場所（ピラミッドの台・オアシスのまわり）
   keepOut: [

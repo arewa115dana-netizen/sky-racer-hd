@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 1.0.0（Phase12 Step12-3：難しさでCPUの速さを変える）
+  バージョン : 1.17.0（Phase17：グランプリの得点）
 */
 
 import { CONFIG } from '../config.js';
@@ -12,6 +12,7 @@ import { Racer } from '../entities/Racer.js';
 import { RacerSprite } from '../entities/RacerSprite.js';
 import { CHARACTERS } from '../entities/Characters.js';
 import { AIController } from '../ai/AIController.js';
+import { updateBest } from './Records.js';
 import { resolveCollisions } from './Collision.js';
 import { RaceManager } from './RaceManager.js';
 import { HUD } from '../ui/HUD.js';
@@ -23,6 +24,9 @@ export class RaceSession {
    * @param {object} o
    * @param {THREE.Scene} o.scene
    * @param {Track} o.track
+   * @param {object} o.course コース（Courses.js。自己ベストの保存先に id を使う）
+   * @param {GrandPrix} o.gp   グランプリ中なら、その進み具合（得点を数える）
+   * @param {function} o.onNext グランプリの結果画面で「次のレースへ」が押されたときに呼ぶ関数
    * @param {object} o.atlas      ドット絵の画像（buildAtlas の戻り値）
    * @param {THREE.Camera} o.camera
    * @param {CameraRig} o.cameraRig
@@ -36,6 +40,9 @@ export class RaceSession {
   constructor(o) {
     this.scene = o.scene;
     this.track = o.track;
+    this.course = o.course;
+    this.gp = o.gp || null;
+    this.onNext = o.onNext || null;
     this.atlas = o.atlas;
     this.camera = o.camera;
     this.cameraRig = o.cameraRig;
@@ -311,7 +318,10 @@ export class RaceSession {
     this.hud.showResults({
       rows,
       atlasCanvas: this.atlas.texture.image,
-      best: updateBestTime(this.race.finishTimeOf(this.player), this.player.character),
+      best: updateBest(this.course ? this.course.id : 'skyTemple', this.race.finishTimeOf(this.player), this.player.character),
+      courseName: this.course ? this.course.name : '',
+      gp: this.gp ? this.gp.addRace(rows) : null,
+      onNext: call(this.onNext),
       onRetry: call(this.onRetry),
       onSelect: call(this.onSelect),
       onTitle: call(this.onTitle)
@@ -435,6 +445,7 @@ export class RaceSession {
     for (const sprite of this.sprites) {
       this.scene.remove(sprite.object3d);
       sprite.geometry.dispose();
+      sprite.shadow.geometry.dispose();   // 足元の影（v1.0.0 まで片付け忘れていた）
     }
     this.hud.dispose();
     this.rings.dispose();
@@ -458,31 +469,4 @@ const AREA_NAMES = {
 // 数値を符号付き小数2桁の文字にする
 function fmt(v) {
   return (v >= 0 ? '+' : '') + v.toFixed(2);
-}
-
-// ---- 自己ベスト（このコースでの一番速いタイム。スマホに保存） ----
-// 保存できない環境でも、その回の結果は出せるようにする
-const BEST_KEY = 'skyRacer.best.skyTemple';
-
-function updateBestTime(time, character) {
-  let best = null;
-  try {
-    best = JSON.parse(window.localStorage.getItem(BEST_KEY) || 'null');
-  } catch (e) {
-    best = null;
-  }
-  const valid = best && typeof best.time === 'number';
-  if (time === null) {
-    return valid ? { time: best.time, name: best.name, isNew: false } : null;
-  }
-  if (valid && best.time <= time) {
-    return { time: best.time, name: best.name, isNew: false };
-  }
-  const record = { time, name: character.name };
-  try {
-    window.localStorage.setItem(BEST_KEY, JSON.stringify(record));
-  } catch (e) {
-    // 保存できなくても、今回の記録として表示はする
-  }
-  return { time, name: character.name, isNew: true };
 }

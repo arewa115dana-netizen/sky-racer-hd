@@ -1,10 +1,11 @@
 /*
   ファイル名 : CourseSelect.js
   保存場所   : /js/ui
-  役割       : コース選択画面（キャラ選択の次）。選んだコースの形を上から見た地図で大きく表示し、
-               名前・ひとこと・難しさの★・自己ベストを見せる。下のアイコンで選んで「決定」。
-               準備中のコースは「？」で表示し、選べない
-  バージョン : 1.13.0（Phase13 Step13-2）
+  役割       : コース選択画面（キャラ選択の次）。上のタブで「1コース」と「グランプリ」を切り替える。
+                 1コース   … 選んだコースの形を上から見た地図で大きく表示し、名前・ひとこと・難しさの★・自己ベストを見せる
+                 グランプリ … カップ（続けて走るコースの組）を選ぶ。走るコースと、これまでの最高順位（トロフィー）を見せる
+               下のアイコンで選んで「決定」。準備中のコースは「？」で表示し、選べない
+  バージョン : 1.17.0（Phase17 Step17-2：グランプリのカップ選択）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」／左上「◀ キャラ選択」
                PC     … ← → で選ぶ、Enter・スペースで決定、Esc でキャラ選択へ
   メモ       : 決定したあと、コースの読み込み中は「準備中…」を出す（showLoading）。
@@ -22,10 +23,20 @@ export class CourseSelect {
    * @param {function} o.onDecide 決定したときに呼ぶ関数（コース番号を渡す）
    * @param {function} o.onBack   キャラ選択へ戻るときに呼ぶ関数
    * @param {function} o.onSound  効果音を鳴らす関数（名前を渡す）
+   * @param {Array} o.cups        グランプリのカップ（Courses.js の CUPS）
+   * @param {function} o.getCupBest カップの id を渡すと、最高順位（1〜6）か null を返す関数
+   * @param {function} o.onDecideCup カップを決定したときに呼ぶ関数（カップ番号を渡す）
+   * @param {string} o.mode       最初のタブ（'course' または 'cup'）
    */
   constructor(o) {
     this.courses = o.courses;
-    this.index = Math.max(0, Math.min(o.courses.length - 1, o.index || 0));
+    this.cups = o.cups || [];
+    this.getCupBest = o.getCupBest || (() => null);
+    this.onDecideCup = o.onDecideCup || (() => {});
+    this.mode = o.mode === 'cup' && this.cups.length ? 'cup' : 'course';
+    this.courseIndex = Math.max(0, Math.min(o.courses.length - 1, o.index || 0));
+    this.cupIndex = 0;
+    this.index = this.courseIndex;
     this.getBest = o.getBest || (() => null);
     this.onDecide = o.onDecide;
     this.onBack = o.onBack;
@@ -33,7 +44,7 @@ export class CourseSelect {
     this.done = false;
 
     this.build();
-    this.select(this.index, true);
+    this.setMode(this.mode, true);
 
     this.onKey = (e) => this.handleKey(e);
     window.addEventListener('keydown', this.onKey);
@@ -62,7 +73,10 @@ export class CourseSelect {
     el.innerHTML =
       '<button class="cs-back" type="button">◀ キャラ選択</button>' +
       '<div class="cs-inner">' +
-      '<div class="cs-heading">コースを選ぶ</div>' +
+      '<div class="co-tabs">' +
+      '  <button class="co-tab" type="button" data-mode="course">1コース</button>' +
+      '  <button class="co-tab" type="button" data-mode="cup">グランプリ</button>' +
+      '</div>' +
       '<div class="cs-main">' +
       '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas></div>' +
       '  <div class="cs-info">' +
@@ -91,21 +105,10 @@ export class CourseSelect {
     this.bestEl = el.querySelector('.co-best');
     this.decideBtn = el.querySelector('.cs-decide');
 
-    // コースのアイコン（小さな地図。準備中は「？」）
-    const iconsEl = el.querySelector('.cs-icons');
-    this.iconButtons = this.courses.map((course, i) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'cs-icon co-icon' + (course.ready ? '' : ' locked');
-      const canvas = document.createElement('canvas');
-      canvas.width = 64;
-      canvas.height = 64;
-      drawMap(canvas, course, 3);
-      button.appendChild(canvas);
-      button.addEventListener('click', () => this.select(i));
-      iconsEl.appendChild(button);
-      return button;
-    });
+    this.iconsEl = el.querySelector('.cs-icons');
+    this.iconButtons = [];
+    this.tabButtons = Array.from(el.querySelectorAll('.co-tab'));
+    this.tabButtons.forEach((b) => b.addEventListener('click', () => this.setMode(b.dataset.mode)));
 
     el.querySelector('.cs-prev').addEventListener('click', () => this.move(-1));
     el.querySelector('.cs-next').addEventListener('click', () => this.move(1));
@@ -113,10 +116,44 @@ export class CourseSelect {
     el.querySelector('.cs-back').addEventListener('click', () => this.back());
   }
 
+  // ---- タブ（1コース／グランプリ）の切り替え ----
+  setMode(mode, silent) {
+    if (this.done) return;
+    if (mode === 'cup' && !this.cups.length) return;
+    this.mode = mode;
+    this.tabButtons.forEach((b) => b.classList.toggle('selected', b.dataset.mode === mode));
+    this.el.classList.toggle('cup-mode', mode === 'cup');
+    // 下のアイコンを作り直す
+    this.iconsEl.innerHTML = '';
+    const list = mode === 'cup' ? this.cups : this.courses;
+    this.iconButtons = list.map((item, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cs-icon co-icon' + (mode === 'course' && !item.ready ? ' locked' : '');
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      if (mode === 'cup') drawTrophy(canvas, item.color, this.getCupBest(item.id));
+      else drawMap(canvas, item, 3);
+      button.appendChild(canvas);
+      button.addEventListener('click', () => this.select(i));
+      this.iconsEl.appendChild(button);
+      return button;
+    });
+    this.select(mode === 'cup' ? this.cupIndex : this.courseIndex, true);
+    if (!silent) this.onSound('select');
+    this.fit();
+  }
+
   // ---- 選ぶ ----
   select(i, silent) {
     if (this.done) return;
+    if (this.mode === 'cup') {
+      this.selectCup(i, silent);
+      return;
+    }
     this.index = i;
+    this.courseIndex = i;
     const course = this.courses[i];
     this.nameEl.textContent = course.ready ? course.name : '？？？';
     this.starsEl.innerHTML = '<span class="co-stars-label">難しさ</span>' +
@@ -132,13 +169,40 @@ export class CourseSelect {
     if (!silent) this.onSound('select');
   }
 
+  // カップを選ぶ：トロフィーの絵・名前・ひとこと・走るコース・最高順位
+  selectCup(i, silent) {
+    this.index = i;
+    this.cupIndex = i;
+    const cup = this.cups[i];
+    const best = this.getCupBest(cup.id);
+    this.nameEl.textContent = cup.name;
+    this.starsEl.innerHTML = '<span class="co-stars-label">' + cup.courses.length + 'レース</span>';
+    const names = cup.courses.map((id) => {
+      const c = this.courses.find((x) => x.id === id);
+      return c ? c.name : id;
+    });
+    this.descEl.innerHTML = cup.sub + '<br><span class="co-cup-list">' + names.join(' → ') + '</span>';
+    this.bestEl.textContent = best === null ? '最高順位 まだなし' : '最高順位 ' + best + '位' + (best <= 3 ? '（' + ['金', '銀', '銅'][best - 1] + 'のトロフィー）' : '');
+    this.decideBtn.disabled = false;
+    this.iconButtons.forEach((b, k) => b.classList.toggle('selected', k === i));
+    drawTrophy(this.mapCanvas, cup.color, best);
+    if (!silent) this.onSound('select');
+  }
+
   move(step) {
-    const n = this.courses.length;
+    const n = this.mode === 'cup' ? this.cups.length : this.courses.length;
     this.select((this.index + step + n) % n);
   }
 
   decide() {
-    if (this.done || !this.courses[this.index].ready) return;
+    if (this.done) return;
+    if (this.mode === 'cup') {
+      this.done = true;
+      this.onSound('decide');
+      this.onDecideCup(this.index);
+      return;
+    }
+    if (!this.courses[this.index].ready) return;
     this.done = true;
     this.onSound('decide');
     this.onDecide(this.index);
@@ -161,6 +225,10 @@ export class CourseSelect {
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.move(1);
     else if (e.code === 'Enter' || e.code === 'Space') this.decide();
     else if (e.code === 'Escape') this.back();
+    else if (e.code === 'Tab') {
+      e.preventDefault();
+      this.setMode(this.mode === 'cup' ? 'course' : 'cup');
+    }
   }
 
   // ふわっと消してから取り除く
@@ -235,6 +303,40 @@ function drawMap(canvas, course, lineWidth) {
   ctx.arc(sx(s), sy(s), lineWidth * 0.9 + 1, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+}
+
+// ---- トロフィーの絵（ドット絵風。取ったトロフィーの色で塗る。まだなら カップの色のうすい絵） ----
+function drawTrophy(canvas, cupColor, best) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const colors = { 1: '#ffd34a', 2: '#dfe8f2', 3: '#f0a868' };
+  const won = best !== null && best <= 3;
+  const main = won ? colors[best] : cupColor;
+  const u = W / 16;   // 16マスで描く
+  const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x * u), Math.round(y * u), Math.ceil(w * u), Math.ceil(h * u)); };
+  ctx.globalAlpha = won ? 1 : 0.45;
+  const edge = 'rgba(10,20,50,0.95)';
+  // ふち
+  px(3, 2, 10, 1, edge); px(2, 3, 1, 4, edge); px(13, 3, 1, 4, edge); px(3, 7, 1, 1, edge); px(12, 7, 1, 1, edge);
+  px(4, 8, 1, 1, edge); px(11, 8, 1, 1, edge); px(5, 9, 6, 1, edge); px(7, 10, 2, 2, edge); px(5, 12, 6, 1, edge); px(4, 13, 8, 2, edge);
+  // 取っ手
+  px(0, 3, 2, 1, edge); px(0, 4, 1, 3, edge); px(1, 6, 1, 1, edge); px(14, 3, 2, 1, edge); px(15, 4, 1, 3, edge); px(14, 6, 1, 1, edge);
+  // 中身
+  px(3, 3, 10, 4, main); px(4, 7, 8, 1, main); px(5, 8, 6, 1, main); px(7, 9, 2, 1, main);
+  px(5, 13, 6, 1, main);
+  // 光
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillRect(Math.round(4 * u), Math.round(3 * u), Math.ceil(u), Math.ceil(3 * u));
+  ctx.globalAlpha = 1;
+  if (won) {
+    ctx.fillStyle = '#1a2a5a';
+    ctx.font = 'bold ' + Math.round(4 * u) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(best), 8 * u, 5.2 * u);
+  }
 }
 
 // 制御点をなめらかな輪にする（Catmull-Rom。1区間を steps 個に分ける）

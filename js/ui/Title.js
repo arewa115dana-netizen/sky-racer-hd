@@ -5,7 +5,7 @@
                画面のどこかをタップ（PCはクリック・Enter・スペース）したら onStart を呼ぶ。
                最初のタップで音が使えるようになる（スマホで最初の音が鳴らない問題の解決）。
                左下の「遊び方」ボタンで、操作とコツの説明を開く
-  バージョン : 1.0.0（Phase12 Step12-3）
+  バージョン : 2.0.0（Phase17：7コースとグランプリに合わせて表示と遊び方を更新）
   メモ       : 後ろの景色（コースを飛ぶカメラ）は Game.js が動かす。
                遊び方を開いている間は、タップしてもスタートしない（「閉じる」で戻る）
 */
@@ -16,7 +16,7 @@ import { CONFIG } from '../config.js';
 const HOWTO_HTML =
   '<div class="howto-inner">' +
   '  <div class="howto-title">遊び方</div>' +
-  '  <div class="howto-goal">空に浮かぶコースを <b>3周</b> して、<b>1位</b> を目指そう！</div>' +
+  '  <div class="howto-goal">空に浮かぶ <b>7つのコース</b> を <b>3周</b> して、<b>1位</b> を目指そう！</div>' +
   '  <div class="howto-cols">' +
   '    <div class="howto-col">' +
   '      <div class="howto-head">操作（スマホ）</div>' +
@@ -37,6 +37,8 @@ const HOWTO_HTML =
   '        <li><b class="c-gold">金のリング</b>：くぐるとその場で加速</li>' +
   '        <li><b>スタートダッシュ</b>：「GO!」の直前にブーストを押す</li>' +
   '        <li><b>柵のない所</b>：端から出ると落ちるので注意</li>' +
+  '        <li><b>坂道</b>：上りは遅く、下りは速い。<b class="c-blue">氷</b>の上はすべる</li>' +
+  '        <li><b class="c-gold">グランプリ</b>：コース選択の「グランプリ」で、続けて走ってポイントで競う</li>' +
   '      </ul>' +
   '    </div>' +
   '  </div>' +
@@ -60,7 +62,7 @@ export class Title {
       '<div class="title-logo">' +
       '<span class="title-sky">SKY RACER</span><span class="title-hd">HD</span>' +
       '</div>' +
-      '<div class="title-sub">天空神殿グランプリ</div>' +
+      '<div class="title-sub">天空グランプリ</div>' +
       '<div class="title-start">タップしてスタート</div>' +
       '<button class="title-howto-btn" type="button">？ 遊び方</button>' +
       '<div class="howto">' + HOWTO_HTML + '</div>' +

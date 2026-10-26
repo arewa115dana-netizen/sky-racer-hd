@@ -391,7 +391,7 @@ export const ICE_COURSE = {
   data: ICE,
   theme: THEME,
   decor: ICE_DECOR,
-  music: 'race',
+  music: 'ice',
   titleStart: 200,   // タイトルの背景：氷の橋からオーロラへ
   keepOut: [{ x: 66, z: -32, r: 60 }],
   scenery: (track) => buildScenery(track)

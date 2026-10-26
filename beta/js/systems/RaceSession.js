@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 1.13.0（Phase13 Step13-2：自己ベストをコースごとに保存）
+  バージョン : 1.17.0（Phase17：グランプリの得点）
 */
 
 import { CONFIG } from '../config.js';
@@ -25,6 +25,8 @@ export class RaceSession {
    * @param {THREE.Scene} o.scene
    * @param {Track} o.track
    * @param {object} o.course コース（Courses.js。自己ベストの保存先に id を使う）
+   * @param {GrandPrix} o.gp   グランプリ中なら、その進み具合（得点を数える）
+   * @param {function} o.onNext グランプリの結果画面で「次のレースへ」が押されたときに呼ぶ関数
    * @param {object} o.atlas      ドット絵の画像（buildAtlas の戻り値）
    * @param {THREE.Camera} o.camera
    * @param {CameraRig} o.cameraRig
@@ -39,6 +41,8 @@ export class RaceSession {
     this.scene = o.scene;
     this.track = o.track;
     this.course = o.course;
+    this.gp = o.gp || null;
+    this.onNext = o.onNext || null;
     this.atlas = o.atlas;
     this.camera = o.camera;
     this.cameraRig = o.cameraRig;
@@ -316,6 +320,8 @@ export class RaceSession {
       atlasCanvas: this.atlas.texture.image,
       best: updateBest(this.course ? this.course.id : 'skyTemple', this.race.finishTimeOf(this.player), this.player.character),
       courseName: this.course ? this.course.name : '',
+      gp: this.gp ? this.gp.addRace(rows) : null,
+      onNext: call(this.onNext),
       onRetry: call(this.onRetry),
       onSelect: call(this.onSelect),
       onTitle: call(this.onTitle)

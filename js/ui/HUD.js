@@ -3,7 +3,7 @@
   保存場所   : /js/ui
   役割       : レース中の画面表示。順位・周回・タイム・ブーストゲージ・ドリフトの溜まり・
                カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）・結果画面
-  バージョン : 0.9.4（Phase9 Step9-4）
+  バージョン : 1.17.0（Phase17：グランプリの得点と総合順位）
   メモ       : 表示はHTMLの文字で行う（3Dより軽い）。
                変わったときだけ書き換えて、無駄な処理をしない
 */
@@ -118,17 +118,20 @@ export class HUD {
    * @param {HTMLCanvasElement} o.atlasCanvas キャラの絵（顔アイコン用）
    * @param {object} o.best { time, name, isNew } 自己ベスト（なければ null）
    * @param {function} o.onRetry / o.onSelect / o.onTitle ボタンを押したときの処理
+   * @param {object} o.gp グランプリ中なら { label, gained(キャラ番号→このレースのポイント), standings, isLast }
+   * @param {function} o.onNext グランプリの「次のレースへ」を押したときの処理
    */
   showResults(o) {
     const me = o.rows.find((r) => r.isPlayer);
     const winnerTime = o.rows[0] && o.rows[0].time !== null ? o.rows[0].time : null;
 
     const box = document.createElement('div');
-    box.className = 'results screen';
+    box.className = 'results screen' + (o.gp ? ' gp' : '');
     let html = '<div class="results-inner">' +
       '<div class="results-title">RESULT</div>' +
+      (o.courseName ? '<div class="results-course">' + (o.gp ? o.gp.label + '　' : '') + o.courseName + '</div>' : '') +
       (me ? '<div class="results-mine place' + me.rank + '">' + me.rank + '位でゴール！</div>' : '') +
-      '<div class="results-list">';
+      '<div class="results-body"><div class="results-list">';
     o.rows.forEach((r, i) => {
       const time = r.time !== null ? formatTime(r.time) : '記録なし';
       const gap = r.time !== null && winnerTime !== null && i > 0 ? '+' + (r.time - winnerTime).toFixed(2) : '';
@@ -138,18 +141,38 @@ export class HUD {
         '<span class="results-name">' + r.name + (r.isPlayer ? '<small>あなた</small>' : '') + '</span>' +
         '<span class="results-time">' + time + '</span>' +
         '<span class="results-gap">' + gap + '</span>' +
+        (o.gp ? '<span class="results-pts">+' + (o.gp.gained.get(r.charIndex) || 0) + '</span>' : '') +
         '</div>';
     });
     html += '</div>';
+    // グランプリの総合順位（レース結果の右横に並べる）
+    if (o.gp) {
+      html += '<div class="results-gp"><div class="results-gp-title">総合順位</div>';
+      for (const e of o.gp.standings) {
+        html += '<div class="results-gp-row' + (e.isPlayer ? ' me' : '') + '">' +
+          '<span class="results-gp-rank">' + e.rank + '</span>' +
+          '<span class="results-gp-name">' + e.name + '</span>' +
+          '<span class="results-gp-pts">' + e.points + '点</span></div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';   // results-body
     if (o.best) {
       html += '<div class="results-best">自己ベスト ' + formatTime(o.best.time) + '（' + o.best.name + '）' +
         (o.best.isNew ? '<b class="results-new">NEW RECORD!</b>' : '') + '</div>';
     }
-    html += '<div class="results-buttons">' +
-      '<button class="results-btn main" type="button" data-action="retry">もう一度</button>' +
-      '<button class="results-btn" type="button" data-action="select">キャラ選択</button>' +
-      '<button class="results-btn" type="button" data-action="title">タイトル</button>' +
-      '</div></div>';
+    if (o.gp) {
+      html += '<div class="results-buttons">' +
+        '<button class="results-btn main" type="button" data-action="next">' + (o.gp.isLast ? '最終結果へ ▶' : '次のレースへ ▶') + '</button>' +
+        '<button class="results-btn" type="button" data-action="title">やめる</button>' +
+        '</div></div>';
+    } else {
+      html += '<div class="results-buttons">' +
+        '<button class="results-btn main" type="button" data-action="retry">もう一度</button>' +
+        '<button class="results-btn" type="button" data-action="select">キャラ選択</button>' +
+        '<button class="results-btn" type="button" data-action="title">タイトル</button>' +
+        '</div></div>';
+    }
     box.innerHTML = html;
 
     // 結果画面はHUDの中ではなく、ページに直接置く。
@@ -174,6 +197,7 @@ export class HUD {
       used = true;
       const action = button.dataset.action;
       if (action === 'retry') o.onRetry();
+      else if (action === 'next' && o.onNext) o.onNext();
       else if (action === 'select') o.onSelect();
       else if (action === 'title') o.onTitle();
     });

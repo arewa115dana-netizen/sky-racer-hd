@@ -59,3 +59,11 @@ export function courseIndexOf(id) {
   const i = COURSES.findIndex((c) => c.id === id && c.ready);
   return i >= 0 ? i : 0;
 }
+
+// ---- グランプリのカップ（何コースかを続けて走る） ----
+export const CUPS = [
+  { id: 'sun', name: '晴れの杯', sub: 'まずはここから。明るい4コース', courses: ['skyTemple', 'desert', 'harbor', 'mushroom'], color: '#ffd34a' },
+  { id: 'star', name: '星の杯', sub: '上級者向け。氷・星空・火山の3コース', courses: ['ice', 'observatory', 'volcano'], color: '#b49cff' },
+  { id: 'sky', name: '天空の杯', sub: '全7コースを走りきる、いちばん長いカップ', courses: ['skyTemple', 'desert', 'ice', 'harbor', 'mushroom', 'observatory', 'volcano'], color: '#7fe0ff' }
+];
+

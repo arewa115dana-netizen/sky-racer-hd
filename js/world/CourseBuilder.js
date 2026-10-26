@@ -4,7 +4,7 @@
   役割       : コースの見た目を中心線（Track）から自動で作る。
                路面・縁石・浮遊島の岩肌・柵・空中ルートの灯籠・スタートライン。
                部品ごとに1つにまとめて、描画回数を少なくする
-  バージョン : 0.3.1（Phase3 Step3-1）
+  バージョン : 1.14.0（Phase14：区間ごとに岩肌の色を変えられるように）
 */
 
 import * as THREE from 'three';
@@ -153,8 +153,10 @@ function buildRock(track) {
     pointAt(track, i, 0, -depth * wobble, b0);
     pointAt(track, j, 0, -depth * wobbleNext, b1);
 
-    const rockTop = makeColor(c.rockColor, 1);
-    const rockSide = makeColor(c.rockColor, 0.75);
+    // 岩肌の色は区間ごとに変えられる（rockColors。なければ rockColor）
+    const hex = c.rockColors && c.rockColors[area] !== undefined ? c.rockColors[area] : c.rockColor;
+    const rockTop = makeColor(hex, 1);
+    const rockSide = makeColor(hex, 0.75);
     mb.quad(l0, l1, b1, b0, rockTop);
     mb.quad(r0, b0, b1, r1, rockSide);
   }
