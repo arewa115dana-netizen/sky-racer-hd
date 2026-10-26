@@ -4,7 +4,7 @@
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音を準備し、
                選ばれたコースの世界（World：コース・背景・光・空気感）を読み込み、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 1.17.0（Phase17：グランプリのレース）
+  バージョン : 1.18.0（Phase19：みんなで対戦のレース）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
                画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
@@ -105,7 +105,8 @@ export class Game {
     // 結果表が出ているときは Enter キーでも「もう一度」（グランプリ中は「次のレースへ」）
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Enter' && this.session && this.session.resultsShown) {
-        if (this.session.gp) this.screens.gpNext();
+        if (this.session.net) this.screens.backToRoom();
+        else if (this.session.gp) this.screens.gpNext();
         else this.startRace(this.screens.charIndex);
       }
     });
@@ -141,7 +142,8 @@ export class Game {
 
   // ---- レースを始める（前のレースがあれば片付けてから） ----
   // gp を渡すとグランプリのレースになる（結果画面に得点を出し、「次のレースへ」で onNext を呼ぶ）
-  startRace(playerCharIndex, gp = null) {
+  // net を渡すとみんなで対戦のレースになる（{ room, slots, mySlot }）
+  startRace(playerCharIndex, gp = null, net = null) {
     if (this.session) {
       this.session.dispose();
     }
@@ -152,6 +154,9 @@ export class Game {
       track: this.track,
       course: this.world.course,
       gp,
+      net,
+      onRoom: () => this.screens.backToRoom(),
+      onLeave: () => this.screens.leaveRoom(),
       onNext: gp ? () => this.screens.gpNext() : null,
       atlas: this.atlas,
       camera: this.camera,
@@ -300,6 +305,8 @@ export class Game {
 
     // 数字キー 1〜6 でキャラクター切り替え、P で省電力モード（PCでの確認用）
     window.addEventListener('keydown', (e) => {
+      // 名前や部屋番号を入力している間は、キー操作を受け付けない
+      if (e.target && e.target.tagName === 'INPUT') return;
       if (e.code === 'KeyP' && !e.repeat) {
         this.togglePowerSave();
       }

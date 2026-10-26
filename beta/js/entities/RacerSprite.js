@@ -4,7 +4,7 @@
   役割       : レーサーの見た目。ドット絵の板（ビルボード）を常にカメラへ向け、
                カメラから見た向き（後ろ・斜め後ろ・横・斜め前・正面）で絵を切り替える。
                後ろから見ているときは、曲がる向きに傾いた絵を使う。足元に丸い影を置く
-  バージョン : 0.8.1（Phase8 Step8-1）
+  バージョン : 1.18.0（Phase19：みんなで対戦の相手の頭の上に名前を出す）
 */
 
 import * as THREE from 'three';
@@ -40,6 +40,44 @@ export class RacerSprite {
     this.object3d.add(this.mesh);
 
     this.setFrame('back', false);
+  }
+
+  // 頭の上に名前を出す（みんなで対戦の相手）。遠くても読めるよう、画面上の大きさは一定
+  setLabel(text) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const font = 'bold 36px sans-serif';
+    ctx.font = font;
+    const w = Math.ceil(ctx.measureText(text).width) + 24;
+    canvas.width = w;
+    canvas.height = 52;
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(10,20,50,0.95)';
+    ctx.strokeText(text, w / 2, 27);
+    ctx.fillStyle = '#9fe8ff';
+    ctx.fillText(text, w / 2, 27);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, transparent: true, fog: false });
+    const label = new THREE.Sprite(mat);
+    const h = 0.085;
+    label.scale.set(h * w / 52, h, 1);
+    label.center.set(0.5, 0);
+    label.position.y = CONFIG.sprite.size + CONFIG.sprite.lift + 0.3;
+    label.renderOrder = 10;
+    this.label = label;
+    this.object3d.add(label);
+  }
+
+  disposeLabel() {
+    if (!this.label) return;
+    this.label.material.map.dispose();
+    this.label.material.dispose();
+    this.label = null;
   }
 
   // キャラクターを変える

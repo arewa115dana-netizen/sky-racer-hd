@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 2.0.0（Phase17：全7コース・コースごとの曲・グランプリ）
+  バージョン : 2.1.0（Phase18-19：みんなで対戦）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '2.0.0',
+  VERSION: '2.1.0',
 
   // ゲームループ
   loop: {
@@ -414,5 +414,30 @@ export const CONFIG = {
     fovSpeed: 6,         // 最高速のときに広がる画角（度）
     fovBoost: 10,        // ブースト中にさらに広がる画角（度）
     fovFollow: 4         // 画角が変わる速さ
+  },
+
+  // みんなで対戦（js/net の各ファイルが使う）
+  net: {
+    // つなぎ合わせ係（仲介サーバー）。PeerJS の無料の公開サーバー
+    signal: { host: '0.peerjs.com', port: 443, path: '/', key: 'peerjs', secure: true },
+    // 通り道を探す手伝い（STUN）。家のWi-Fiの外側の住所を調べる
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ],
+    idPrefix: 'skyracerhd-',   // 仲介サーバーに登録する名前の頭（他のアプリと混ざらないように）
+    maxPlayers: 4,             // 1部屋の最大人数（残りの枠はCPU）
+    signalTimeout: 10,         // 仲介サーバーの返事を待つ最長時間（秒）
+    connectTimeout: 15,        // 相手と直接つながるまで待つ最長時間（秒）
+    joinTimeout: 20,           // 部屋に入るまで待つ最長時間（秒）
+    readyTimeout: 25,          // 全員のコース読み込みを待つ最長時間（秒）
+    sendRate: 15,              // 位置を送る回数（1秒あたり）
+    interpDelay: 0.1,          // 相手の動きを、どれだけ遅らせてなめらかにつなぐか（秒。通信がゆらぐと自動で長くなる）
+    maxInterpDelay: 0.35,      // 遅らせる時間の上限（秒）
+    maxExtrapolate: 0.35,      // 位置が届かないとき、予想で動かし続ける最長時間（秒）
+    snapDistance: 30,          // これ以上離れた位置が届いたら、なめらかにせず飛ばす（メートル）
+    humanSlots: [3, 2, 5, 4],  // 人のスタート位置（入った順。0 = 先頭）
+    resultWait: 25,            // 自分がゴールしてから、他の人のゴールを待つ最長時間（秒）
+    nameKey: 'skyRacer.netName'// 名前の保存先
   }
 };

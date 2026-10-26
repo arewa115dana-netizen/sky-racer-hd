@@ -4,7 +4,7 @@
   役割       : 1レース分のまとまり。6人のレーサー・CPUの思考・見た目・押し合い・
                追い上げ補正・レース進行（RaceManager）・画面表示（HUD）をまとめて動かす。
                Game.js から「レースを1つ作る → 毎回動かす → 終わったら片付ける」ように使う
-  バージョン : 1.17.0（Phase17：グランプリの得点）
+  バージョン : 1.18.0（Phase19：みんなで対戦。相手の機体は届いた位置で動かす）
 */
 
 import { CONFIG } from '../config.js';
@@ -18,6 +18,7 @@ import { RaceManager } from './RaceManager.js';
 import { HUD } from '../ui/HUD.js';
 import { Rings } from '../world/Rings.js';
 import { Effects } from '../render/Effects.js';
+import { NetRace } from '../net/NetRace.js';
 
 export class RaceSession {
   /**
@@ -36,6 +37,9 @@ export class RaceSession {
    * @param {function} o.onRetry  結果画面の「もう一度」が押されたときに呼ぶ関数
    * @param {function} o.onSelect 結果画面の「キャラ選択」が押されたときに呼ぶ関数
    * @param {function} o.onTitle  結果画面の「タイトル」が押されたときに呼ぶ関数
+   * @param {object} o.net  みんなで対戦なら { room, slots: [{ pid, char, name }], mySlot }
+   * @param {function} o.onRoom  みんなで対戦の結果画面「部屋に戻る」
+   * @param {function} o.onLeave みんなで対戦の結果画面「部屋を出る」
    */
   constructor(o) {
     this.scene = o.scene;
@@ -51,6 +55,11 @@ export class RaceSession {
     this.onRetry = o.onRetry || null;
     this.onSelect = o.onSelect || null;
     this.onTitle = o.onTitle || null;
+    this.net = o.net || null;
+    this.onRoom = o.onRoom || null;
+    this.onLeave = o.onLeave || null;
+    this.netRace = null;
+    this.shownFinishes = 0;
 
     this.racers = [];    // 全レーサー（プレイヤーを含む6人）
     this.sprites = [];   // racers と同じ順番の見た目
@@ -71,7 +80,8 @@ export class RaceSession {
     this.resultsShown = false;
     this.resultsWait = 0;
 
-    this.createRacers(o.playerCharIndex || 0);
+    if (this.net) this.createNetRacers();
+    else this.createRacers(o.playerCharIndex || 0);
 
     // 空中のリング（ゲージは最初は空で、リングで溜める）
     this.rings = new Rings(this.scene, this.track, this.track.data.rings);
@@ -92,7 +102,15 @@ export class RaceSession {
     this.race = new RaceManager(this.racers, this.track);
     this.hud = new HUD(document.body);
     this.setupRaceEvents();
-    this.hud.showBanner('GO直前にブーストでスタートダッシュ！', 2.2, 'hint');
+    if (this.net) {
+      // 全員のコースの読み込みが終わるまで、カウントダウンを始めない（release で始まる）
+      this.race.hold = true;
+      this.netRace = new NetRace({ room: this.net.room, racers: this.racers, race: this.race, slots: this.net.slots });
+      this.netRace.onLeft = (racer, slot) => this.takeOver(racer, slot);
+      this.hud.showBanner('みんなの準備を待っています…', 0, 'hint');
+    } else {
+      this.hud.showBanner('GO直前にブーストでスタートダッシュ！', 2.2, 'hint');
+    }
 
     // カメラをプレイヤーの真後ろに合わせる
     this.player.computeRenderPose(1);
@@ -133,6 +151,63 @@ export class RaceSession {
       this.sprites.push(sprite);
       this.ais.push(ai);
     }
+  }
+
+  // ---- みんなで対戦：スタートの位置と、だれが動かすかを決めてレーサーを作る ----
+  // 人の機体：自分の分は自分で動かし、他の人の分は届いた位置で動かす。
+  // CPU：ホストが動かし、ゲストの画面では届いた位置で動かす
+  createNetRacers() {
+    const r = CONFIG.race;
+    const net = this.net;
+    const isHost = net.room.isHost;
+    let cpu = 0;
+    net.slots.forEach((slot, i) => {
+      const character = CHARACTERS[slot.char] || CHARACTERS[0];
+      const isPlayer = i === net.mySlot;
+      const racer = new Racer({ id: i, character, track: this.track, isPlayer });
+      racer.isHuman = slot.pid >= 0;
+      racer.netName = racer.isHuman ? slot.name : character.name;
+      racer.remote = !isPlayer && (racer.isHuman || !isHost);
+      const row = Math.floor(i / 2);
+      const side = i % 2 === 0 ? -1 : 1;
+      racer.placeAt(-(r.gridFront + row * r.gridRowGap), side * r.gridSideOffset);
+
+      const sprite = new RacerSprite(this.atlas, character.id);
+      sprite.time = i * 0.7;
+      if (racer.isHuman && !isPlayer) sprite.setLabel(slot.name);
+      this.scene.add(sprite.object3d);
+
+      let ai = null;
+      if (isPlayer) {
+        this.player = racer;
+        this.playerSprite = sprite;
+      } else if (!racer.isHuman) {
+        const p = CONFIG.ai.personalities[cpu % CONFIG.ai.personalities.length];
+        cpu += 1;
+        if (!racer.remote) ai = new AIController(racer, this.track, { ...p, seed: i * 3.1 });
+      }
+      this.racers.push(racer);
+      this.sprites.push(sprite);
+      this.ais.push(ai);
+    });
+  }
+
+  // みんなで対戦：全員の準備ができたので、カウントダウンを始める
+  release() {
+    if (!this.race.hold) return;
+    this.race.hold = false;
+    this.hud.showBanner('GO直前にブーストでスタートダッシュ！', 2.2, 'hint');
+  }
+
+  // ホスト：抜けた人の機体をCPUが引き継ぐ
+  takeOver(racer, slot) {
+    racer.remote = false;
+    racer.isHuman = false;
+    racer.moveAngle = racer.angle;
+    const ai = new AIController(racer, this.track, { lineOffset: 0, skill: 0.85, seed: slot * 3.1 });
+    ai.setRings(this.rings);
+    this.ais[slot] = ai;
+    this.hud.showBanner(racer.netName + ' が抜けました（CPUが代わりに走ります）', 2.5, 'hint');
   }
 
   // ---- レースの合図に合わせて、画面にお知らせを出し、効果音を鳴らす ----
@@ -192,6 +267,9 @@ export class RaceSession {
     const player = this.player;
     const wasRespawning = player.state === 'respawn';
 
+    // みんなで対戦：位置を送り、届いた位置で相手を動かす
+    if (this.netRace) this.netRace.update(dt);
+
     // カウントダウン中はレーサーを止めておく
     if (this.race.isRunning()) {
       this.updateRubberBand();
@@ -199,6 +277,7 @@ export class RaceSession {
       // 全員：入力を決めて（プレイヤーは指・キー、CPUは思考）、同じ物理で動かす
       for (let i = 0; i < this.racers.length; i += 1) {
         const ai = this.ais[i];
+        if (this.racers[i].remote) continue;   // 届いた位置で動く相手（NetRace が動かす）
         this.racers[i].applyInput(ai ? ai.think(dt) : input);
         this.racers[i].step(dt);
       }
@@ -217,6 +296,7 @@ export class RaceSession {
 
       // リングを通り抜けたか
       for (const racer of this.racers) {
+        if (racer.remote) continue;
         this.rings.check(racer, (ring) => this.onRing(racer, ring));
       }
 
@@ -240,9 +320,13 @@ export class RaceSession {
       this.resultsWait += dt;
       const r = CONFIG.race;
       const allDone = this.race.finishOrder.length === this.racers.length;
-      if (this.resultsWait >= r.resultMinWait && (allDone || this.resultsWait >= r.resultMaxWait)) {
+      const maxWait = this.net ? CONFIG.net.resultWait : r.resultMaxWait;
+      if (this.resultsWait >= r.resultMinWait && (allDone || this.resultsWait >= maxWait)) {
         this.showResults();
       }
+    } else if (this.net && this.resultsShown && this.race.finishOrder.length !== this.shownFinishes) {
+      // みんなで対戦：結果を出した後に、他の人のゴールが届いたら表を書き直す
+      this.showResults();
     }
 
     // コースから落ちたとき・復帰したときの音
@@ -256,6 +340,7 @@ export class RaceSession {
     // ミニターボ：火花をパッと散らす。自分なら音を鳴らして数える（デバッグ表示用）
     for (const r of this.racers) {
       if (r.lastTurbo > 0) {
+        if (!r.remote) r.lastTurboSeen = r.lastTurbo;   // 相手の画面にも火花を出してもらう（NetRace が送る）
         this.effects.turboBurst(r, r.lastTurbo);
         if (r.isPlayer) {
           this.playerTurbos += 1;
@@ -305,10 +390,12 @@ export class RaceSession {
   // 結果画面を出す（ゴールしていない人は「記録なし」で、走った距離の順）
   showResults() {
     this.resultsShown = true;
+    this.shownFinishes = this.race.finishOrder.length;
     const ranking = this.race.getRanking();
     const rows = ranking.map((racer, i) => ({
       rank: i + 1,
-      name: racer.character.name,
+      name: racer.netName || racer.character.name,
+      human: !!racer.isHuman,
       charIndex: CHARACTERS.indexOf(racer.character),
       time: this.race.finishTimeOf(racer),
       isPlayer: racer.isPlayer
@@ -321,6 +408,9 @@ export class RaceSession {
       best: updateBest(this.course ? this.course.id : 'skyTemple', this.race.finishTimeOf(this.player), this.player.character),
       courseName: this.course ? this.course.name : '',
       gp: this.gp ? this.gp.addRace(rows) : null,
+      online: !!this.net,
+      onRoom: call(this.onRoom),
+      onLeave: call(this.onLeave),
       onNext: call(this.onNext),
       onRetry: call(this.onRetry),
       onSelect: call(this.onSelect),
@@ -331,9 +421,19 @@ export class RaceSession {
   // CPUの追い上げ補正：前にいるCPUは少し遅く、後ろにいるCPUは少し速く。難しさで全体の速さも変わる
   updateRubberBand() {
     const rb = CONFIG.rubberBand;
+    // みんなで対戦では、人の機体の平均の位置を基準にする
+    let base = this.player.distance;
+    if (this.net) {
+      let sum = 0;
+      let n = 0;
+      for (const r of this.racers) {
+        if (r.isHuman || r.isPlayer) { sum += r.distance; n += 1; }
+      }
+      if (n) base = sum / n;
+    }
     for (const racer of this.racers) {
-      if (racer.isPlayer) continue;
-      const gap = racer.distance - this.player.distance;
+      if (racer.isPlayer || racer.remote || racer.isHuman) continue;
+      const gap = racer.distance - base;
       const ratio = Math.min(1, Math.abs(gap) / rb.range);
       // cpuSpeed は難しさによる最高速の倍率（ふつう = 1）
       racer.speedScale = (gap > 0 ? 1 - ratio * rb.maxSlow : 1 + ratio * rb.maxFast) * (rb.cpuSpeed || 1);
@@ -412,7 +512,7 @@ export class RaceSession {
   // キャラクターの切り替え（PCの数字キーでの確認用）
   selectCharacter(index) {
     const ch = CHARACTERS[index];
-    if (!ch) return;
+    if (!ch || this.net) return;
     this.player.setCharacter(ch);
     this.playerSprite.setCharacter(ch.id);
     this.debug.log(ch.name + '（' + ch.type + '）');
@@ -442,10 +542,12 @@ export class RaceSession {
 
   // 片付け（次のレースを作る前に呼ぶ。Step5-2で使う）
   dispose() {
+    if (this.netRace) this.netRace.dispose();
     for (const sprite of this.sprites) {
       this.scene.remove(sprite.object3d);
       sprite.geometry.dispose();
       sprite.shadow.geometry.dispose();   // 足元の影（v1.0.0 まで片付け忘れていた）
+      sprite.disposeLabel();
     }
     this.hud.dispose();
     this.rings.dispose();

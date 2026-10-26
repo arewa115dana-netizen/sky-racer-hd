@@ -3,7 +3,7 @@
   保存場所   : /js/ui
   役割       : レース中の画面表示。順位・周回・タイム・ブーストゲージ・ドリフトの溜まり・
                カウントダウン・お知らせ（LAP 2、FINAL LAP、GOAL!）・結果画面
-  バージョン : 1.17.0（Phase17：グランプリの得点と総合順位）
+  バージョン : 1.18.0（Phase19：みんなで対戦の結果画面）
   メモ       : 表示はHTMLの文字で行う（3Dより軽い）。
                変わったときだけ書き換えて、無駄な処理をしない
 */
@@ -122,6 +122,9 @@ export class HUD {
    * @param {function} o.onNext グランプリの「次のレースへ」を押したときの処理
    */
   showResults(o) {
+    // 出し直し（みんなで対戦で、あとから他の人のゴールが届いた）のときは、前の表を消す
+    if (this.resultsEl && this.resultsEl.parentNode) this.resultsEl.parentNode.removeChild(this.resultsEl);
+    if (this.onResize) window.removeEventListener('resize', this.onResize);
     const me = o.rows.find((r) => r.isPlayer);
     const winnerTime = o.rows[0] && o.rows[0].time !== null ? o.rows[0].time : null;
 
@@ -135,10 +138,10 @@ export class HUD {
     o.rows.forEach((r, i) => {
       const time = r.time !== null ? formatTime(r.time) : '記録なし';
       const gap = r.time !== null && winnerTime !== null && i > 0 ? '+' + (r.time - winnerTime).toFixed(2) : '';
-      html += '<div class="results-row place' + r.rank + (r.isPlayer ? ' me' : '') + '">' +
+      html += '<div class="results-row place' + r.rank + (r.isPlayer ? ' me' : '') + (r.human && !r.isPlayer ? ' human' : '') + '">' +
         '<span class="results-rank">' + r.rank + '</span>' +
         '<canvas class="results-icon" width="' + CELL + '" height="' + CELL + '" data-char="' + r.charIndex + '"></canvas>' +
-        '<span class="results-name">' + r.name + (r.isPlayer ? '<small>あなた</small>' : '') + '</span>' +
+        '<span class="results-name">' + r.name + (r.isPlayer ? '<small>あなた</small>' : (o.online && !r.human ? '<small>CPU</small>' : '')) + '</span>' +
         '<span class="results-time">' + time + '</span>' +
         '<span class="results-gap">' + gap + '</span>' +
         (o.gp ? '<span class="results-pts">+' + (o.gp.gained.get(r.charIndex) || 0) + '</span>' : '') +
@@ -161,7 +164,12 @@ export class HUD {
       html += '<div class="results-best">自己ベスト ' + formatTime(o.best.time) + '（' + o.best.name + '）' +
         (o.best.isNew ? '<b class="results-new">NEW RECORD!</b>' : '') + '</div>';
     }
-    if (o.gp) {
+    if (o.online) {
+      html += '<div class="results-buttons">' +
+        '<button class="results-btn main" type="button" data-action="room">部屋に戻る</button>' +
+        '<button class="results-btn" type="button" data-action="leave">部屋を出る</button>' +
+        '</div></div>';
+    } else if (o.gp) {
       html += '<div class="results-buttons">' +
         '<button class="results-btn main" type="button" data-action="next">' + (o.gp.isLast ? '最終結果へ ▶' : '次のレースへ ▶') + '</button>' +
         '<button class="results-btn" type="button" data-action="title">やめる</button>' +
@@ -198,6 +206,8 @@ export class HUD {
       const action = button.dataset.action;
       if (action === 'retry') o.onRetry();
       else if (action === 'next' && o.onNext) o.onNext();
+      else if (action === 'room') o.onRoom();
+      else if (action === 'leave') o.onLeave();
       else if (action === 'select') o.onSelect();
       else if (action === 'title') o.onTitle();
     });

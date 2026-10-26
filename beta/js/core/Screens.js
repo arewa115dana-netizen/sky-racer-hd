@@ -6,7 +6,7 @@
                設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラ・コースを
                スマホに保存して反映する。
                画面に合わせてBGMを切り替える（タイトル・選択画面はタイトル曲、レースはコースの曲）
-  バージョン : 1.17.0（Phase17：グランプリ）
+  バージョン : 1.18.0（Phase18：みんなで対戦の部屋とレース）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -22,6 +22,8 @@ import { loadBest } from '../systems/Records.js';
 import { GrandPrix, loadCupBest } from '../systems/GrandPrix.js';
 import { GrandPrixResult } from '../ui/GrandPrixResult.js';
 import { PauseMenu } from '../ui/Menu.js';
+import { Lobby } from '../ui/Lobby.js';
+import { Room } from '../net/Room.js';
 
 const CHAR_KEY = 'skyRacer.character';
 const COURSE_KEY = 'skyRacer.course';
@@ -49,6 +51,8 @@ export class Screens {
     this.courseIndex = loadCourseIndex();
     this.gp = null;               // グランプリ中なら、その進み具合
     this.selectMode = 'course';   // コース選択画面で前回開いていたタブ
+    this.room = null;             // みんなで対戦の部屋（入っている間だけ）
+    this.lobby = null;            // みんなで対戦の画面（出ている間だけ）
     this.settings = loadSettings();
   }
 
@@ -109,6 +113,7 @@ export class Screens {
   showTitle() {
     const g = this.game;
     this.gp = null;
+    this.leaveRoomQuietly();
     if (g.session) {
       g.session.dispose();
       g.session = null;
@@ -129,6 +134,7 @@ export class Screens {
   showCharacterSelect() {
     const g = this.game;
     this.gp = null;
+    this.leaveRoomQuietly();
     if (g.session) {
       g.session.dispose();
       g.session = null;
@@ -172,6 +178,7 @@ export class Screens {
       },
       onSound: (name) => g.audio.play(name),
       onBack: () => this.showCharacterSelect(),
+      onOnline: () => this.showOnline(),
       onDecide: (index) => {
         this.selectMode = 'course';
         this.gp = null;
@@ -273,6 +280,241 @@ export class Screens {
     });
   }
 
+  // ==== みんなで対戦 ====
+  // 部屋の画面（部屋に入っていれば部屋の中、いなければ入口）
+  showOnline(message) {
+    const g = this.game;
+    if (g.session) {
+      g.session.dispose();
+      g.session = null;
+    }
+    if (this.lobby) this.lobby.close();
+    this.enterMenuMode();
+    g.setState('SELECT');
+    g.audio.playMusic('title');
+    this.lobby = new Lobby({
+      name: loadNetName(),
+      courses: COURSES,
+      characters: CHARACTERS,
+      atlasCanvas: g.atlas.texture.image,
+      onSound: (name) => g.audio.play(name),
+      onBack: () => {
+        this.closeLobby();
+        this.showCourseSelect();
+      },
+      onCreate: (name) => this.createRoom(name),
+      onJoin: (name, code) => this.joinRoom(name, code),
+      onLeave: () => this.leaveRoom(),
+      onStart: () => this.hostStart(),
+      onCourse: (index) => { if (this.room) this.room.setCourse(index); }
+    });
+    if (this.room) this.lobby.showRoom(this.room);
+    else if (message) this.lobby.setStatus(message, true);
+  }
+
+  closeLobby() {
+    if (this.lobby) {
+      this.lobby.close();
+      this.lobby = null;
+    }
+  }
+
+  // 部屋の準備（作る人・入る人 共通）
+  makeRoom(name) {
+    saveNetName(name);
+    const room = new Room({
+      name: name || 'プレイヤー',
+      char: this.charIndex,
+      onChange: () => { if (this.lobby && this.room === room) this.lobby.refresh(); },
+      onClosed: (reason) => { if (this.room === room) this.roomLost(reason); }
+    });
+    room.on('start', (m) => this.netStart(m));
+    room.on('go', () => {
+      const s = this.game.session;
+      if (s && s.net) s.release();
+    });
+    room.on('end', () => {
+      // ホストが部屋に戻った：まだ走っていても、ここで結果を出す
+      const s = this.game.session;
+      if (s && s.net && !s.resultsShown) s.showResults();
+    });
+    room.on('ready', (m, pid) => this.onGuestReady(pid));
+    return room;
+  }
+
+  createRoom(name) {
+    const lobby = this.lobby;
+    const room = this.makeRoom(name);
+    lobby.setBusy(true, '部屋を作っています…');
+    room.create(this.courseIndex).then(() => {
+      if (this.lobby !== lobby || room.closed) {
+        room.close(true);
+        return;
+      }
+      this.room = room;
+      lobby.setBusy(false);
+      lobby.showRoom(room);
+    }).catch((err) => {
+      room.close(true);
+      if (this.lobby !== lobby) return;
+      lobby.setBusy(false);
+      lobby.setStatus(err.message + '。通信の状態を確認して、もう一度お試しください', true);
+    });
+  }
+
+  joinRoom(name, code) {
+    const lobby = this.lobby;
+    const room = this.makeRoom(name);
+    lobby.setBusy(true, '部屋 ' + code + ' に入っています…');
+    room.join(code).then(() => {
+      if (this.lobby !== lobby || room.closed) {
+        room.close(true);
+        return;
+      }
+      this.room = room;
+      lobby.setBusy(false);
+      lobby.showRoom(room);
+    }).catch((err) => {
+      if (this.lobby !== lobby) return;
+      lobby.setBusy(false);
+      lobby.setStatus(err.message, true);
+    });
+  }
+
+  // 自分から部屋を出る → 入口へ
+  leaveRoom() {
+    this.leaveRoomQuietly();
+    if (this.menu) this.closePauseMenu(false);
+    this.showOnline();
+  }
+
+  leaveRoomQuietly() {
+    if (this.room) {
+      this.room.close(true);
+      this.room = null;
+    }
+    this.closeLobby();
+    clearTimeout(this.readyTimer);
+  }
+
+  // 部屋がなくなった（ホストが閉じた・切れた）→ 入口へ（理由を出す）
+  roomLost(reason) {
+    this.room = null;
+    clearTimeout(this.readyTimer);
+    if (this.menu) this.closePauseMenu(false);
+    const text = reason || '部屋から出ました';
+    if (this.lobby) {
+      this.lobby.showEntry(loadNetName(), text);
+    } else {
+      this.showOnline(text);
+    }
+  }
+
+  // ホスト：スタート。人のスタート位置とCPUを決めて、全員に知らせる
+  hostStart() {
+    const room = this.room;
+    if (!room || !room.isHost) return;
+    const slots = [];
+    const humanSlots = CONFIG.net.humanSlots;
+    const used = new Set(room.members.map((m) => m.char));
+    // CPUのキャラ：人と同じキャラはなるべく避ける
+    const cpuChars = CHARACTERS.map((_, i) => i).filter((i) => !used.has(i))
+      .concat(CHARACTERS.map((_, i) => i).filter((i) => used.has(i)));
+    let cpu = 0;
+    for (let i = 0; i < CONFIG.race.racerCount; i += 1) {
+      const k = humanSlots.indexOf(i);
+      const m = k >= 0 ? room.members[k] : null;
+      if (m) slots.push({ pid: m.pid, char: m.char, name: m.name });
+      else slots.push({ pid: -1, char: cpuChars[cpu++ % cpuChars.length], name: '' });
+    }
+    room.setLocked(true);
+    const msg = { t: 'start', course: room.course, slots };
+    room.broadcast(msg);
+    this.netStart(msg);
+  }
+
+  // レースの準備（全員）：コースを読み込んでレースを作り、カウントダウンは止めておく
+  netStart(m) {
+    const g = this.game;
+    const room = this.room;
+    if (!room) return;
+    const index = m.course;
+    const course = COURSES[index];
+    if (!course) return;
+    if (this.menu) this.closePauseMenu(false);
+    this.closeLobby();
+    if (g.session) {
+      g.session.dispose();
+      g.session = null;
+    }
+    this.enterMenuMode();
+    g.setState('SELECT');
+    const card = document.createElement('div');
+    card.className = 'screen gp-card';
+    card.innerHTML = '<div class="gp-card-cup" style="color:#7fe0ff">みんなで対戦</div>' +
+      '<div class="gp-card-no">' + room.members.length + '人 ＋ CPU</div>' +
+      '<div class="gp-card-name">' + course.name + '</div>' +
+      '<div class="gp-card-stars">' + '★'.repeat(course.stars || 1) + '</div>';
+    document.body.appendChild(card);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (this.room !== room) {
+        card.remove();
+        return;
+      }
+      if (g.loadCourse(index)) this.titleTime = 0;
+      this.courseIndex = index;
+      card.classList.add('hide');
+      setTimeout(() => card.remove(), 450);
+      this.leaveMenuMode();
+      const mySlot = m.slots.findIndex((x) => x.pid === room.myPid);
+      g.startRace(this.charIndex, null, { room, slots: m.slots.map((x) => ({ ...x })), mySlot });
+      if (room.isHost) {
+        this.readySet = new Set([room.myPid]);
+        clearTimeout(this.readyTimer);
+        this.readyTimer = setTimeout(() => this.hostGo(), CONFIG.net.readyTimeout * 1000);
+        this.onGuestReady(room.myPid);
+      } else {
+        room.toHost({ t: 'ready' });
+      }
+    }));
+  }
+
+  // ホスト：ゲストの読み込みが終わった。全員そろったらスタート
+  onGuestReady(pid) {
+    const room = this.room;
+    if (!room || !room.isHost || !this.readySet) return;
+    this.readySet.add(pid);
+    if (room.members.every((x) => this.readySet.has(x.pid))) this.hostGo();
+  }
+
+  hostGo() {
+    const room = this.room;
+    clearTimeout(this.readyTimer);
+    if (!room || !this.readySet) return;
+    this.readySet = null;
+    room.broadcast({ t: 'go' });
+    // 知らせが届くまでの時間（往復の半分）だけ自分も待つと、全員ほぼ同時にカウントダウンが始まる
+    const delay = Math.min(0.3, room.maxRtt() / 2);
+    setTimeout(() => {
+      const s = this.game.session;
+      if (s && s.net) s.release();
+    }, delay * 1000);
+  }
+
+  // 結果画面の「部屋に戻る」
+  backToRoom() {
+    const room = this.room;
+    if (!room) {
+      this.showOnline();
+      return;
+    }
+    if (room.isHost) {
+      room.broadcast({ t: 'end' });
+      room.setLocked(false);
+    }
+    this.showOnline();
+  }
+
   // ---- レースが始まったとき（Game.startRace から呼ばれる）：コースの曲と、最終周・ゴールでの変化 ----
   onRaceStart(session) {
     const audio = this.game.audio;
@@ -319,10 +561,16 @@ export class Screens {
 
   openPauseMenu() {
     const g = this.game;
-    g.loop.setPaused(true);
-    g.audio.setPaused(true);
+    // みんなで対戦では止められない（他の人は走り続けている）。メニューを出すだけ
+    const online = !!(g.session && g.session.net);
+    if (!online) {
+      g.loop.setPaused(true);
+      g.audio.setPaused(true);
+    }
     this.enterMenuMode();
     this.menu = new PauseMenu({
+      online,
+      onLeave: () => this.leaveRoom(),
       settings: { ...this.settings },
       canPostfx: this.canPostfx(),
       onResume: () => this.closePauseMenu(true),
@@ -371,6 +619,22 @@ function applyDifficulty(key) {
 }
 
 // ---- 保存と読み込み（保存できない環境でも動くよう、失敗は無視する） ----
+
+function loadNetName() {
+  try {
+    return window.localStorage.getItem(CONFIG.net.nameKey) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function saveNetName(name) {
+  try {
+    window.localStorage.setItem(CONFIG.net.nameKey, name || '');
+  } catch (e) {
+    // 保存できなくても遊べる
+  }
+}
 
 function loadCharIndex() {
   try {
