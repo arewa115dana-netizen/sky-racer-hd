@@ -8,7 +8,7 @@
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '2.2.0',
+  VERSION: '2.2.1',
 
   // ゲームループ
   loop: {
@@ -442,6 +442,8 @@ export const CONFIG = {
     maxExtrapolate: 0.35,      // 位置が届かないとき、予想で動かし続ける最長時間（秒）
     snapDistance: 30,          // これ以上離れた位置が届いたら、なめらかにせず飛ばす（メートル）
     humanSlots: [3, 2, 5, 4],  // 人のスタート位置（入った順。0 = 先頭）
+    silentLimit: 12,           // ホスト：ゲストから何も届かないまま、この秒数たったら抜けたとみなす
+    hostSilentLimit: 25,       // ゲスト：ホストから何も届かないまま、この秒数たったら部屋がなくなったとみなす
     resultWait: 25,            // 自分がゴールしてから、他の人のゴールを待つ最長時間（秒）
     nameKey: 'skyRacer.netName'// 名前の保存先
   }

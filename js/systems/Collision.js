@@ -2,7 +2,7 @@
   ファイル名 : Collision.js
   保存場所   : /js/systems
   役割       : レーサー同士の押し合い。6人なので全組み合わせ（15組）を毎回調べる
-  バージョン : 0.4.2（Phase4 Step4-2）
+  バージョン : 1.18.0（Phase19：届いた位置で動く相手は押さない。自分の側だけが押し戻される）
 
   コース基準座標（進行方向の距離・左右・高さ）で近さを調べるので、計算が軽い
     ・横に重なったら、左右に押し離す
@@ -48,6 +48,11 @@ export function resolveCollisions(racers, track) {
       const overlapSide = c.sideSize - Math.abs(dx);
       if (overlapSide <= 0) continue;
 
+      // 届いた位置で動く人（みんなで対戦の相手）は動かせないので、こちらだけが全部押し戻される
+      if (a.remote && b.remote) continue;
+      const wa = a.remote ? 0 : (b.remote ? 2 : 1);
+      const wb = 2 - wa;
+
       contacts += 1;
       a.bumped = true;
       b.bumped = true;
@@ -55,8 +60,8 @@ export function resolveCollisions(racers, track) {
       // 左右に押し離す（ぴったり同じ位置なら番号で向きを決める）
       const dir = dx !== 0 ? Math.sign(dx) : (a.id < b.id ? -1 : 1);
       const push = overlapSide / 2;
-      a.x += dir * push;
-      b.x -= dir * push;
+      a.x += dir * push * wa;
+      b.x -= dir * push * wb;
 
       // ほぼ真後ろからの追突：速さを分け合い、前後にも少し離す
       if (Math.abs(dx) < c.sideSize * c.rearEndRatio) {
@@ -64,12 +69,17 @@ export function resolveCollisions(racers, track) {
         const rear = ds > 0 ? b : a;
         const dv = rear.speed - front.speed;
         if (dv > 0) {
-          rear.speed -= dv * c.rearSlow;
-          front.speed += dv * c.frontPush;
+          if (!rear.remote) rear.speed -= dv * c.rearSlow;
+          if (!front.remote) front.speed += dv * c.frontPush;
         }
         const gap = c.alongSize - Math.abs(ds);
-        rear.distance -= gap * 0.5;
-        rear.s = rear.wrap(rear.distance);
+        if (!rear.remote) {
+          rear.distance -= gap * 0.5;
+          rear.s = rear.wrap(rear.distance);
+        } else {
+          front.distance += gap * 0.5;
+          front.s = front.wrap(front.distance);
+        }
       }
     }
   }

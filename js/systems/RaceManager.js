@@ -3,7 +3,7 @@
   保存場所   : /js/systems
   役割       : レースの進行。カウントダウン → レース → ゴールの流れ、
                周回数・順位・タイム・ゴール順を管理する
-  バージョン : 0.5.1（Phase5 Step5-1）
+  バージョン : 1.18.0（Phase19：みんなで対戦。届いた位置で動く人のゴールは、ホストの表で決める）
 
   レースの段階（phase）
     'countdown' : 3・2・1 のあいだ。レーサーは止まって待つ
@@ -29,6 +29,7 @@ export class RaceManager {
   // レースを最初からにする（レーサーの位置は Game が並べ直す）
   reset() {
     this.phase = 'countdown';
+    this.hold = false;             // true の間はカウントダウンを始めない（みんなで対戦で、全員の準備を待つ）
     this.countdown = CONFIG.race.countdownTime;
     this.lastCount = Math.ceil(this.countdown) + 1;
     this.time = 0;                 // GO からの経過時間（秒）
@@ -62,6 +63,7 @@ export class RaceManager {
   // ---- 1回の計算（1/60秒）ごとに呼ぶ。レーサーを動かした後に呼ぶこと ----
   step(dt) {
     if (this.phase === 'countdown') {
+      if (this.hold) return;
       this.countdown -= dt;
       const n = Math.ceil(this.countdown);
       if (n !== this.lastCount && n > 0) {
@@ -87,11 +89,16 @@ export class RaceManager {
       const before = this.lapsDone.get(r);
       if (done <= before) continue;
 
+      // 届いた位置で動く人（みんなで対戦の相手）：周回だけ数え、ゴールはホストの表（setFinish）で決める
+      if (r.remote) {
+        this.lapsDone.set(r, Math.min(done, this.laps - 1));
+        continue;
+      }
       this.lapsDone.set(r, done);
       if (done >= this.laps) {
         this.finishTimes.set(r, this.time);
-        this.finishOrder.push(r);
-        this.emit('finish', r, this.finishOrder.length);
+        this.addFinished(r);
+        this.emit('finish', r, this.finishOrder.indexOf(r) + 1);
         if (r.isPlayer) {
           this.phase = 'finished';
         }
@@ -104,6 +111,22 @@ export class RaceManager {
       }
     }
 
+    this.updateRanking();
+  }
+
+  // ゴールした人の列に入れる（タイムの早い順に並べる）
+  addFinished(r) {
+    this.finishOrder.push(r);
+    this.finishOrder.sort((a, b) => this.finishTimes.get(a) - this.finishTimes.get(b));
+  }
+
+  // 外から決まったゴール（みんなで対戦：ホストの表）
+  setFinish(r, time) {
+    if (this.finishTimes.has(r)) return;
+    this.finishTimes.set(r, time);
+    this.lapsDone.set(r, this.laps);
+    this.addFinished(r);
+    this.emit('finish', r, this.finishOrder.indexOf(r) + 1);
     this.updateRanking();
   }
 
@@ -134,7 +157,7 @@ export class RaceManager {
 
   // カウントダウン中に画面へ出す文字（3・2・1）。それ以外は null
   countdownText() {
-    if (this.phase !== 'countdown') return null;
+    if (this.phase !== 'countdown' || this.hold) return null;
     return String(Math.max(1, Math.ceil(this.countdown)));
   }
 }

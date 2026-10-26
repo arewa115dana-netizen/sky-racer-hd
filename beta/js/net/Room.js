@@ -141,7 +141,7 @@ export class Room {
         onMessage: (m) => this.hostReceive(src, m),
         onClose: () => this.dropGuest(src)
       });
-      entry = { link, pid: -1, rtt: 0 };
+      entry = { link, pid: -1, rtt: 0, lastSeen: performance.now() };
       this.links.set(src, entry);
       link.handleSignal('OFFER', payload);
     } else if (entry && (type === 'CANDIDATE' || type === 'ANSWER')) {
@@ -153,6 +153,7 @@ export class Room {
   hostReceive(src, m) {
     const entry = this.links.get(src);
     if (!entry) return;
+    entry.lastSeen = performance.now();
     if (m.t === 'hello') {
       let reason = null;
       if (m.v !== CONFIG.VERSION) reason = 'version';
@@ -190,8 +191,21 @@ export class Room {
   }
 
   pingAll() {
-    for (const entry of this.links.values()) {
-      if (entry.pid >= 0) entry.link.send({ t: 'ping', a: performance.now() });
+    const now = performance.now();
+    // 自分（ホスト）のアプリが裏に回って止まっていたときは、その間に届かなかった分を責めない
+    const frozen = this.lastPingAll && now - this.lastPingAll > 6000;
+    this.lastPingAll = now;
+    if (frozen) {
+      for (const entry of this.links.values()) entry.lastSeen = now;
+    }
+    for (const entry of Array.from(this.links.values())) {
+      if (entry.pid < 0) continue;
+      // しばらく何も届かない人は、アプリが閉じられたとみなして切る（レース中ならCPUが代わりに走る）
+      if (now - entry.lastSeen > CONFIG.net.silentLimit * 1000) {
+        entry.link.close();
+        continue;
+      }
+      entry.link.send({ t: 'ping', a: now });
     }
   }
 
@@ -332,6 +346,15 @@ export class Room {
                 // つながったので、つなぎ合わせ係はもういらない
                 sig.close();
                 link.onClose = () => this.lost('ホストとの接続が切れました');
+                // ホストから長い間なにも届かなければ、部屋はなくなったとみなす
+                this.lastHostSeen = performance.now();
+                this.pingTimer = setInterval(() => {
+                  const now = performance.now();
+                  // 自分のアプリが裏に回って止まっていた直後は、数え直す
+                  if (this.lastCheck && now - this.lastCheck > 6000) this.lastHostSeen = now;
+                  this.lastCheck = now;
+                  if (now - this.lastHostSeen > CONFIG.net.hostSilentLimit * 1000) this.lost('ホストとの接続が切れました');
+                }, 2000);
                 done(null);
               } else if (m.t === 'reject') {
                 done(REJECT_TEXT[m.reason] || '部屋に入れませんでした', { final: true });
@@ -366,6 +389,7 @@ export class Room {
 
   // ホストから届いた（ゲスト）
   guestReceive(m) {
+    this.lastHostSeen = performance.now();
     if (m.t === 'room') {
       // 届いた中身は、決まった形に整えてから使う
       if (!Array.isArray(m.members)) return;

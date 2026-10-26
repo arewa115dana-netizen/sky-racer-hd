@@ -5,7 +5,7 @@
                  1コース   … 選んだコースの形を上から見た地図で大きく表示し、名前・ひとこと・難しさの★・自己ベストを見せる
                  グランプリ … カップ（続けて走るコースの組）を選ぶ。走るコースと、これまでの最高順位（トロフィー）を見せる
                下のアイコンで選んで「決定」。準備中のコースは「？」で表示し、選べない
-  バージョン : 1.17.0（Phase17 Step17-2：グランプリのカップ選択）
+  バージョン : 1.18.0（Phase18：「みんなで対戦」のタブ）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」／左上「◀ キャラ選択」
                PC     … ← → で選ぶ、Enter・スペースで決定、Esc でキャラ選択へ
   メモ       : 決定したあと、コースの読み込み中は「準備中…」を出す（showLoading）。
@@ -27,6 +27,7 @@ export class CourseSelect {
    * @param {function} o.getCupBest カップの id を渡すと、最高順位（1〜6）か null を返す関数
    * @param {function} o.onDecideCup カップを決定したときに呼ぶ関数（カップ番号を渡す）
    * @param {string} o.mode       最初のタブ（'course' または 'cup'）
+   * @param {function} o.onOnline 「みんなで対戦」のタブが押されたときに呼ぶ関数
    */
   constructor(o) {
     this.courses = o.courses;
@@ -41,6 +42,7 @@ export class CourseSelect {
     this.onDecide = o.onDecide;
     this.onBack = o.onBack;
     this.onSound = o.onSound || (() => {});
+    this.onOnline = o.onOnline || null;
     this.done = false;
 
     this.build();
@@ -76,6 +78,7 @@ export class CourseSelect {
       '<div class="co-tabs">' +
       '  <button class="co-tab" type="button" data-mode="course">1コース</button>' +
       '  <button class="co-tab" type="button" data-mode="cup">グランプリ</button>' +
+      '  <button class="co-tab co-tab-online" type="button" data-mode="online">みんなで対戦</button>' +
       '</div>' +
       '<div class="cs-main">' +
       '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas></div>' +
@@ -119,6 +122,15 @@ export class CourseSelect {
   // ---- タブ（1コース／グランプリ）の切り替え ----
   setMode(mode, silent) {
     if (this.done) return;
+    if (mode === 'online') {
+      // みんなで対戦は別の画面（Lobby.js）
+      if (!this.onOnline) return;
+      this.done = true;
+      this.onSound('decide');
+      this.close();
+      this.onOnline();
+      return;
+    }
     if (mode === 'cup' && !this.cups.length) return;
     this.mode = mode;
     this.tabButtons.forEach((b) => b.classList.toggle('selected', b.dataset.mode === mode));
@@ -244,7 +256,7 @@ export class CourseSelect {
 
 // ---- コースの形を上から見た地図を描く ----
 // 制御点をなめらかにつないで1周の線にする。地上は太い実線、空中は点線。スタートに白い印
-function drawMap(canvas, course, lineWidth) {
+export function drawMap(canvas, course, lineWidth) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width;
   const H = canvas.height;

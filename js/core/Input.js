@@ -3,7 +3,7 @@
   保存場所   : /js/core
   役割       : タッチ操作とキーボードを、共通の「入力状態」に変換する。
                スマホ用のスティックとボタンもここで画面に作る
-  バージョン : 0.2.2（Phase2 Step2-2）
+  バージョン : 1.18.0（Phase18：名前・部屋番号の入力中はキーを受け付けない）
 
   入力状態（getState() の戻り値）
     steer : -1〜1  旋回（-1 = 左、1 = 右）
@@ -129,6 +129,8 @@ export class Input {
   bindKeyboard() {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      // 名前や部屋番号の入力中は、ゲームの操作にしない
+      if (e.target && e.target.tagName === 'INPUT') return;
       this.keys.add(e.code);
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
         this.boostLatched = true;

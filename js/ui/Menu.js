@@ -4,7 +4,7 @@
   役割       : 一時停止メニューと設定画面。
                  一時停止 … 続ける／やり直す／設定／キャラ選択へ／タイトルへ
                  設定     … 音量・BGM・省電力モード・仕上げ処理・デバッグ表示（変えるとすぐ反映され、保存される）
-  バージョン : 0.10.2（Phase10 Step10-2）
+  バージョン : 1.18.0（Phase18：みんなで対戦では「やり直す」などの代わりに「部屋を出る」）
   メモ       : ボタンが押されたときの中身は Screens.js から渡された関数が行う（この画面は見た目と操作だけ）。
                画面に収まらないときは、中身の箱ごと自動で縮める
 */
@@ -46,6 +46,19 @@ export class PauseMenu {
   // ---- 一時停止の画面 ----
   showPause() {
     this.view = 'pause';
+    if (this.o.online) {
+      // みんなで対戦：レースは止まらない（他の人は走り続けている）
+      this.inner.innerHTML =
+        '<div class="menu-title">メニュー</div>' +
+        '<div class="menu-note">みんなで対戦中は止まりません</div>' +
+        '<button class="menu-btn main" type="button" data-action="resume">▶ 続ける</button>' +
+        '<div class="menu-grid">' +
+        '  <button class="menu-btn" type="button" data-action="settings">設定</button>' +
+        '  <button class="menu-btn" type="button" data-action="leave">部屋を出る</button>' +
+        '</div>';
+      this.fit();
+      return;
+    }
     this.inner.innerHTML =
       '<div class="menu-title">一時停止</div>' +
       '<button class="menu-btn main" type="button" data-action="resume">▶ 続ける</button>' +
@@ -103,6 +116,7 @@ export class PauseMenu {
     else if (action === 'retry') o.onRetry();
     else if (action === 'select') o.onSelect();
     else if (action === 'title') o.onTitle();
+    else if (action === 'leave') o.onLeave();
     else if (action === 'settings') this.showSettings();
     else if (action === 'back') this.showPause();
     else if (action.startsWith('level:')) {

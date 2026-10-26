@@ -4,7 +4,7 @@
   役割       : 画面全体のレイアウト、情報表示、スマホ用の操作部品、
                レース中の表示（HUD）、タイトル画面（遊び方の説明つき）、キャラ選択（難しさつき）、コース選択、
                縦向き警告、エラー表示の見た目
-  バージョン : 1.17.0（Phase17：グランプリの画面）
+  バージョン : 1.18.0（Phase18：みんなで対戦の画面）
 
   重なり順（z-index。大きいほど手前）
     エラー 100 / 縦向き警告 50 / タイトル・キャラ選択・一時停止メニュー・結果 40 / バージョン 30 /
@@ -1552,4 +1552,310 @@ body.in-menu #touch-ui {
 
 .gp-result .results-btn {
   font-family: inherit;
+}
+
+/* ---- みんなで対戦（Lobby.js） ---- */
+.co-tab-online {
+  color: #7fe0ff !important;
+  border-color: rgba(127, 224, 255, 0.6) !important;
+}
+
+#lobby {
+  cursor: default;
+  padding: 10px 16px;
+  box-sizing: border-box;
+  background: linear-gradient(rgba(10, 20, 50, 0.6), rgba(10, 20, 50, 0.8));
+  animation: title-in 0.4s ease both;
+}
+
+#lobby button,
+#lobby input {
+  font-family: inherit;
+  color: #ffffff;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#lobby button {
+  cursor: pointer;
+}
+
+#lobby button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lb-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 30px;
+  transform-origin: center center;
+}
+
+.lb-title {
+  font-size: 24px;
+  letter-spacing: 0.2em;
+  color: #7fe0ff;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.lb-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+#lobby input {
+  height: 40px;
+  padding: 0 12px;
+  font-size: 18px;
+  background: rgba(10, 20, 50, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#lobby input:focus {
+  border-color: #ffd34a;
+}
+
+.lb-name {
+  width: 10em;
+}
+
+.lb-choices {
+  display: flex;
+  gap: 14px;
+}
+
+.lb-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 260px;
+  padding: 12px 14px;
+  background: rgba(10, 20, 50, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+}
+
+.lb-choice-head {
+  font-size: 18px;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.lb-choice-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+}
+
+.lb-join-row {
+  display: flex;
+  gap: 8px;
+}
+
+.lb-code {
+  width: 6.6em;
+  text-align: center;
+  letter-spacing: 0.25em;
+  font-size: 22px !important;
+}
+
+.lb-btn {
+  min-width: 110px;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  background: rgba(10, 20, 50, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 8px;
+}
+
+.lb-btn.main {
+  color: #2a1a00 !important;
+  background: linear-gradient(#ffe28a, #e0a830);
+  border: 3px solid #1a2a5a;
+  box-shadow: 0 4px 0 #0b1530;
+}
+
+.lb-btn.main:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #0b1530;
+}
+
+.lb-status {
+  min-height: 1.4em;
+  font-size: 15px;
+  color: #ffe6a0;
+  text-align: center;
+  max-width: 560px;
+}
+
+.lb-status.error {
+  color: #ff9a8a;
+}
+
+.lb-note {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.lb-code-big {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  text-shadow: 3px 3px 0 #1a2a5a;
+}
+
+.lb-code-big small {
+  font-size: 16px;
+}
+
+.lb-code-big b {
+  font-size: 44px;
+  letter-spacing: 0.12em;
+  color: #ffd34a;
+}
+
+.lb-code-hint {
+  margin-top: -8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.lb-members {
+  display: flex;
+  gap: 10px;
+}
+
+.lb-member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 108px;
+  padding: 6px 4px;
+  background: rgba(10, 20, 50, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+}
+
+.lb-member.me {
+  border-color: #ffd34a;
+  box-shadow: 0 0 10px rgba(255, 210, 80, 0.6);
+}
+
+.lb-member.empty {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.lb-face,
+.lb-empty-face {
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.lb-empty-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lb-member-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lb-member-tag {
+  min-height: 1.3em;
+  font-size: 11px;
+  color: #ffe6a0;
+}
+
+.lb-course {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lb-map {
+  width: 72px;
+  height: 72px;
+  background: rgba(10, 20, 50, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+}
+
+.lb-course-text {
+  width: 230px;
+}
+
+.lb-course-name {
+  font-size: 20px;
+  text-shadow: 2px 2px 0 #1a2a5a;
+}
+
+.lb-course-sub {
+  font-size: 13px;
+  color: #ffe6a0;
+}
+
+#lobby.guest .lb-prev,
+#lobby.guest .lb-next {
+  visibility: hidden;
+}
+
+.lb-wait {
+  font-size: 16px;
+  color: #7fe0ff;
+  animation: lb-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes lb-blink {
+  50% { opacity: 0.45; }
+}
+
+.lb-start {
+  min-width: 180px;
+  height: 50px;
+  font-size: 22px;
+  letter-spacing: 0.2em;
+}
+
+/* 結果画面：他の人（人間）の行は水色の名前に */
+.results-row.human .results-name {
+  color: #9fe8ff;
+}
+
+/* 一時停止メニュー：みんなで対戦の注意書き */
+.menu-note {
+  margin: -4px 0 6px;
+  font-size: 13px;
+  color: #ffe6a0;
+  text-align: center;
+}
+
+.results-row:not(.me) .results-name small {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.lb-routes {
+  margin-left: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
 }
