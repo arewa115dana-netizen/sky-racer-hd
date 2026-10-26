@@ -326,6 +326,7 @@ export class Screens {
       name: name || 'プレイヤー',
       char: this.charIndex,
       onChange: () => { if (this.lobby && this.room === room) this.lobby.refresh(); },
+      onProgress: (text) => { if (this.lobby && !this.room) this.lobby.setStatus(text, false); },
       onClosed: (reason) => { if (this.room === room) this.roomLost(reason); }
     });
     room.on('start', (m) => this.netStart(m));

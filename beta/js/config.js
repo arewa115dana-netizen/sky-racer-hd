@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 2.1.0（Phase18-19：みんなで対戦）
+  バージョン : 2.1.1（Phase18-19：みんなで対戦。つなぎ合わせを3ルートに）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '2.1.0',
+  VERSION: '2.1.1',
 
   // ゲームループ
   loop: {
@@ -418,8 +418,14 @@ export const CONFIG = {
 
   // みんなで対戦（js/net の各ファイルが使う）
   net: {
-    // つなぎ合わせ係（仲介サーバー）。PeerJS の無料の公開サーバー
-    signal: { host: '0.peerjs.com', port: 443, path: '/', key: 'peerjs', secure: true },
+    // つなぎ合わせ係（仲介サーバー）。無料の公開サーバーを、上から順に試す（部屋を作る人は全部で待つ）
+    routes: [
+      { name: 'ルート1', kind: 'peerjs', host: '0.peerjs.com', port: 443, path: '/', key: 'peerjs', secure: true },
+      { name: 'ルート2', kind: 'mqtt', url: 'wss://broker.emqx.io:8084/mqtt' },
+      { name: 'ルート3', kind: 'mqtt', url: 'wss://broker.hivemq.com:8884/mqtt' }
+    ],
+    mqttTopic: 'skyracerhd/v2/',   // 公開の伝言板（MQTT）で使う掲示板の名前の頭
+    routeTimeout: 12,          // 1つのルートで部屋に入れるまで待つ最長時間（秒）。だめなら次のルートへ
     // 通り道を探す手伝い（STUN）。家のWi-Fiの外側の住所を調べる
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -429,7 +435,6 @@ export const CONFIG = {
     maxPlayers: 4,             // 1部屋の最大人数（残りの枠はCPU）
     signalTimeout: 10,         // 仲介サーバーの返事を待つ最長時間（秒）
     connectTimeout: 15,        // 相手と直接つながるまで待つ最長時間（秒）
-    joinTimeout: 20,           // 部屋に入るまで待つ最長時間（秒）
     readyTimeout: 25,          // 全員のコース読み込みを待つ最長時間（秒）
     sendRate: 15,              // 位置を送る回数（1秒あたり）
     interpDelay: 0.1,          // 相手の動きを、どれだけ遅らせてなめらかにつなぐか（秒。通信がゆらぐと自動で長くなる）

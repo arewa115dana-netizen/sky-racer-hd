@@ -5,7 +5,7 @@
                  入口 … 名前を決めて「部屋を作る」か、友達の部屋番号（4桁）を入れて「入る」
                  部屋 … 部屋番号を大きく出し、メンバー（最大4人。あきはCPU）を並べる。
                         ホストはコースを選んで「スタート」。ゲストはホストのスタートを待つ
-  バージョン : 1.18.0（Phase18 Step18-2）
+  バージョン : 1.18.1（Phase18：使えているつなぎ合わせのルートを小さく表示）
   メモ       : つなぐ処理は Screens.js（Room.js）が行う。この画面は見た目と操作だけ
 */
 
@@ -146,7 +146,7 @@ export class Lobby {
     this.backBtn.textContent = '◀ 部屋を出る';
     this.inner.innerHTML =
       '<div class="lb-code-big"><small>部屋番号</small><b>' + room.code + '</b></div>' +
-      '<div class="lb-code-hint">' + (room.isHost ? '友達にこの番号を伝えてね' : '部屋に入りました！') + '</div>' +
+      '<div class="lb-code-hint">' + (room.isHost ? '友達にこの番号を伝えてね<span class="lb-routes">つなぎ合わせ ' + room.routeStatus() + '</span>' : '部屋に入りました！') + '</div>' +
       '<div class="lb-members"></div>' +
       '<div class="lb-course">' +
       '  <button class="cs-arrow lb-prev" type="button">◀</button>' +
@@ -194,6 +194,8 @@ export class Lobby {
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(this.o.atlasCanvas, FRONT_COL * CELL, Number(canvas.dataset.char) * CELL, CELL, CELL, 0, 0, CELL, CELL);
     });
+    const routes = this.inner.querySelector('.lb-routes');
+    if (routes) routes.textContent = 'つなぎ合わせ ' + room.routeStatus();
     const course = this.o.courses[room.course];
     if (course) {
       this.courseName.textContent = course.name;

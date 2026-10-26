@@ -5,14 +5,14 @@
                参加した人（ゲスト）はホストとだけつながる（ゲスト同士の知らせはホストが中継する）。
                  ホスト … 4桁の部屋番号で仲介サーバーに登録し、来た人を迎え入れる。メンバーとコースを全員に知らせる
                  ゲスト … 部屋番号のホストに申し込み、迎え入れてもらう
-  バージョン : 1.18.0（Phase18 Step18-1）
+  バージョン : 1.18.1（Phase18：つなぎ合わせ係を3ルートに。ホストは全部で待ち、ゲストは順に試す）
   メモ       : 知らせは { t: 種類, ... } の形。部屋の中の知らせ（hello / welcome / reject / room / prof /
                ping / pong / bye）はここで処理し、それ以外（レースの知らせ）は on() で登録した関数に渡す。
                メンバーの番号（pid）：ホストは 0、ゲストは来た順に 1, 2, 3 …
 */
 
 import { CONFIG } from '../config.js';
-import { Signal } from './Signal.js';
+import { createSignal } from './Signal.js';
 import { Link } from './Link.js';
 
 export class Room {
@@ -28,6 +28,7 @@ export class Room {
     this.char = o.char;
     this.onChange = o.onChange || (() => {});
     this.onClosed = o.onClosed || (() => {});
+    this.onProgress = o.onProgress || null;   // 部屋に入る途中の様子（「ルート2で試しています…」）
     this.handlers = {};
     this.isHost = false;
     this.code = '';
@@ -37,7 +38,7 @@ export class Room {
     this.locked = false;     // レース中は新しい人を入れない
     this.links = new Map();  // ホスト：相手の名前 → { link, pid, rtt }
     this.hostLink = null;    // ゲスト：ホストとの通り道
-    this.signal = null;
+    this.signals = [];       // つなぎ合わせ係（ホストは全ルート、ゲストは今試しているルート）
     this.closed = false;
     this.rtt = 0;
   }
@@ -52,6 +53,7 @@ export class Room {
   }
 
   // ==== ホスト：部屋を作る ====
+  // 全部のルートで同じ部屋番号を登録して待つ（ゲストはどのルートから来てもよい）
   create(course) {
     return new Promise((resolve, reject) => {
       this.isHost = true;
@@ -59,40 +61,68 @@ export class Room {
       this.course = course;
       this.members = [{ pid: 0, name: this.name, char: this.char, host: true }];
       let tries = 0;
+      let settled = false;
       const attempt = () => {
         tries += 1;
         this.code = String(1000 + Math.floor(Math.random() * 9000));
-        this.signal = new Signal(CONFIG.net.idPrefix + this.code, {
-          onOpen: () => {
+        const state = CONFIG.net.routes.map(() => 'wait');   // wait / open / fail
+        const errors = [];
+        const signals = [];
+        this.signals = signals;
+        const check = () => {
+          if (settled || this.signals !== signals) return;
+          // PeerJS（部屋番号が使用中か分かる）の結果が出て、どれか1つでも使えたら部屋ができた
+          const peerDone = CONFIG.net.routes.every((r, k) => r.kind !== 'peerjs' || state[k] !== 'wait');
+          if (state.includes('open') && peerDone) {
+            settled = true;
             this.pingTimer = setInterval(() => this.pingAll(), 2000);
             resolve(this.code);
-          },
-          onTaken: () => {
-            if (tries < 6) attempt();
-            else reject(new Error('部屋番号を決められませんでした'));
-          },
-          onMessage: (type, src, payload) => this.hostSignal(type, src, payload),
-          onError: (reason) => {
-            if (this.code && this.signal && this.signal.open) {
-              // 部屋を作った後に仲介サーバーと切れても、もうつながっている人とは遊べる（新しい人は入れない）
-              return;
-            }
-            reject(new Error(reason));
+          } else if (state.every((x) => x === 'fail')) {
+            settled = true;
+            reject(new Error('部屋を作れませんでした（' + errors.join(' / ') + '）'));
           }
+        };
+        CONFIG.net.routes.forEach((route, k) => {
+          const sig = createSignal(route, CONFIG.net.idPrefix + this.code, {
+            onOpen: () => {
+              state[k] = 'open';
+              check();
+              if (settled) this.onChange();
+            },
+            onTaken: () => {
+              // 同じ部屋番号がもう使われていた：番号を変えてやり直す
+              for (const x of signals) x.close();
+              if (tries < 6) attempt();
+              else if (!settled) { settled = true; reject(new Error('部屋番号を決められませんでした')); }
+            },
+            onMessage: (type, src, payload) => this.hostSignal(type, src, payload, sig),
+            onError: (reason) => {
+              state[k] = 'fail';
+              errors.push(reason);
+              check();
+              if (settled) this.onChange();   // 部屋の画面の「つなぎ合わせ ○×」を書き直す
+            }
+          });
+          signals.push(sig);
         });
       };
       attempt();
     });
   }
 
+  // どのルートが使えているか（部屋の画面に小さく出す）
+  routeStatus() {
+    return this.signals.map((x) => (x.open && !x.closed ? '○' : '×')).join('');
+  }
+
   // 仲介サーバーから届いた知らせ（ホスト）
-  hostSignal(type, src, payload) {
+  hostSignal(type, src, payload, sig) {
     if (!payload || this.closed) return;
     let entry = this.links.get(src);
     if (type === 'OFFER') {
       if (entry) return;
       const link = new Link({
-        signal: this.signal,
+        signal: sig,
         peerId: src,
         connId: payload.connectionId,
         caller: false,
@@ -209,63 +239,107 @@ export class Room {
   }
 
   // ==== ゲスト：部屋に入る ====
+  // ルートを上から順に試す。つなぎ合わせ係とつながらないときだけ次のルートへ
   join(code) {
+    this.isHost = false;
+    this.code = code;
+    const routes = CONFIG.net.routes;
+    const errors = [];
+    const tryRoute = (k) => {
+      if (k >= routes.length || this.closed) {
+        const notFound = errors.filter((e) => e.notFound).length;
+        const detail = errors.map((e) => e.message).join(' / ');
+        const text = notFound > 0
+          ? '部屋 ' + code + ' が見つかりません。番号を確かめるか、ホストに部屋を作り直してもらってください'
+          : '部屋に入れませんでした。通信の状態を確認してください';
+        this.close(true);
+        return Promise.reject(new Error(text + '（' + detail + '）'));
+      }
+      if (k > 0 && this.onProgress) this.onProgress(routes[k].name + 'で試しています…');
+      return this.joinVia(routes[k], code).catch((err) => {
+        if (err.final) {
+          this.close(true);
+          throw err;
+        }
+        errors.push(err);
+        return tryRoute(k + 1);
+      });
+    };
+    return tryRoute(0);
+  }
+
+  // 1つのルートで部屋に入ってみる
+  joinVia(route, code) {
     return new Promise((resolve, reject) => {
-      this.isHost = false;
-      this.code = code;
       let settled = false;
-      const done = (err) => {
+      let link = null;
+      const hostId = CONFIG.net.idPrefix + code;
+      const myId = CONFIG.net.idPrefix + 'g' + Math.random().toString(36).slice(2, 12);
+      const done = (err, opts) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         if (err) {
-          this.close(true);
-          reject(new Error(err));
+          if (link) {
+            link.onClose = () => {};
+            link.close();
+          }
+          sig.close();
+          const e = new Error(err);
+          Object.assign(e, opts || {});
+          reject(e);
         } else {
           resolve();
         }
       };
-      const timer = setTimeout(() => done('部屋に入れませんでした（時間切れ）。部屋番号と、通信の状態を確認してください'), CONFIG.net.joinTimeout * 1000);
-      const hostId = CONFIG.net.idPrefix + code;
-      const myId = CONFIG.net.idPrefix + 'g' + Math.random().toString(36).slice(2, 12);
-      this.signal = new Signal(myId, {
+      const timer = setTimeout(() => {
+        // 返事が来ない：部屋がない（MQTT では「いない」と教えてもらえない）か、届かない
+        done(route.name + '：' + (link && link.answered ? '時間切れ' : '部屋の返事なし'), { notFound: !(link && link.answered) });
+      }, CONFIG.net.routeTimeout * 1000);
+      const sig = createSignal(route, myId, {
         onOpen: () => {
-          this.hostLink = new Link({
-            signal: this.signal,
+          link = new Link({
+            signal: sig,
             peerId: hostId,
             connId: 'c' + Math.random().toString(36).slice(2, 10),
             caller: true,
             onOpen: () => {
-              this.hostLink.send({ t: 'hello', v: CONFIG.VERSION, name: this.name, char: this.char });
+              link.send({ t: 'hello', v: CONFIG.VERSION, name: this.name, char: this.char });
             },
             onMessage: (m) => {
               if (m.t === 'welcome') {
                 this.myPid = m.pid;
-                // つながったので、仲介サーバーとの連絡はもういらない
-                if (this.signal) this.signal.close();
+                this.hostLink = link;
+                // つながったので、つなぎ合わせ係はもういらない
+                sig.close();
+                link.onClose = () => this.lost('ホストとの接続が切れました');
                 done(null);
               } else if (m.t === 'reject') {
-                done(REJECT_TEXT[m.reason] || '部屋に入れませんでした');
-              } else {
+                done(REJECT_TEXT[m.reason] || '部屋に入れませんでした', { final: true });
+              } else if (settled) {
                 this.guestReceive(m);
               }
             },
             onClose: () => {
-              if (!settled) done('部屋のホストとつながりませんでした。同じWi-Fiどうし、などで試してください');
-              else this.lost('ホストとの接続が切れました');
+              // 返事は来たのに直接つながらない（回線の組み合わせの問題。ルートを変えても同じ）
+              done('ホストと直接つながりませんでした。同じWi-Fiどうしなどで試してください（' + route.name + '）', { final: !!link.answered });
             }
           });
+          this.signals = [sig];
         },
-        onTaken: () => done('もう一度お試しください'),
+        onTaken: () => done(route.name + '：名前が重なりました'),
         onMessage: (type, src, payload) => {
-          if (type === 'EXPIRE' && src === hostId) {
-            done('部屋 ' + code + ' が見つかりません');
-          } else if (this.hostLink && src === hostId) {
-            this.hostLink.handleSignal(type, payload);
+          if (src !== hostId) return;
+          if (type === 'EXPIRE') {
+            done(route.name + '：部屋なし', { notFound: true });
+          } else if (link) {
+            if (type === 'ANSWER') link.answered = true;
+            link.handleSignal(type, payload);
           }
         },
         onError: (reason) => {
-          if (!settled) done(reason);
+          // つながった後や、もう返事をもらっていれば、つなぎ合わせ係が切れても続けられる
+          if (!settled && !(link && link.answered)) done(reason);
         }
       });
     });
@@ -352,7 +426,7 @@ export class Room {
       }
     }, 300);
     this.links.clear();
-    if (this.signal) this.signal.close();
+    for (const x of this.signals) x.close();
     this.handlers = {};
     if (!silent) this.onClosed(null);
   }

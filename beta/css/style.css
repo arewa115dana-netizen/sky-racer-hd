@@ -1853,3 +1853,9 @@ body.in-menu #touch-ui {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.28);
 }
+
+.lb-routes {
+  margin-left: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
