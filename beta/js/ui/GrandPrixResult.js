@@ -56,7 +56,7 @@ export class GrandPrixResult {
     html += '</div>' +
       '<div class="results-buttons">' +
       '<button class="results-btn main" type="button" data-action="again">もう一度（同じカップ）</button>' +
-      '<button class="results-btn" type="button" data-action="title">タイトルへ</button>' +
+      '<button class="results-btn" type="button" data-action="title">メニューへ</button>' +
       '</div></div>';
     el.innerHTML = html;
     document.body.appendChild(el);

@@ -2,7 +2,8 @@
   ファイル名 : Menu.js
   保存場所   : /js/ui
   役割       : 一時停止メニューと設定画面。
-                 一時停止 … 続ける／やり直す／設定／キャラ選択へ／タイトルへ
+                 一時停止 … 続ける／やり直す／設定／メニューへ／タイトルへ
+               settingsOnly を渡すと設定の画面だけを出す（モード選択の「設定」。「戻る」で閉じる）
                  設定     … 音量・BGM・省電力モード・仕上げ処理・酔いにくいモード・デバッグ表示（変えるとすぐ反映され、保存される）
   バージョン : 2.4.0（設定に「酔いにくいモード」）
   メモ       : ボタンが押されたときの中身は Screens.js から渡された関数が行う（この画面は見た目と操作だけ）。
@@ -40,7 +41,8 @@ export class PauseMenu {
     this.onResize = () => this.fit();
     window.addEventListener('resize', this.onResize);
 
-    this.showPause();
+    if (o.settingsOnly) this.showSettings();
+    else this.showPause();
   }
 
   // ---- 一時停止の画面 ----
@@ -65,7 +67,7 @@ export class PauseMenu {
       '<div class="menu-grid">' +
       '  <button class="menu-btn" type="button" data-action="retry">やり直す</button>' +
       '  <button class="menu-btn" type="button" data-action="settings">設定</button>' +
-      '  <button class="menu-btn" type="button" data-action="select">キャラ選択へ</button>' +
+      '  <button class="menu-btn" type="button" data-action="select">メニューへ</button>' +
       '  <button class="menu-btn" type="button" data-action="title">タイトルへ</button>' +
       '</div>';
     this.fit();
@@ -120,7 +122,10 @@ export class PauseMenu {
     else if (action === 'title') o.onTitle();
     else if (action === 'leave') o.onLeave();
     else if (action === 'settings') this.showSettings();
-    else if (action === 'back') this.showPause();
+    else if (action === 'back') {
+      if (o.settingsOnly) o.onResume();
+      else this.showPause();
+    }
     else if (action.startsWith('level:')) {
       const [, key, step] = action.split(':');
       const v = Math.max(0, Math.min(10, this.settings[key] + Number(step)));

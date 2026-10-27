@@ -44,8 +44,10 @@ export class CourseSelect {
     this.onSound = o.onSound || (() => {});
     this.onOnline = o.onOnline || null;
     this.done = false;
+    this.fixed = !!o.fixed;   // true なら上のタブを出さない（モード選択で決めてきた）
 
     this.build();
+    if (this.fixed) this.el.classList.add('fixed');
     this.setMode(this.mode, true);
 
     this.onKey = (e) => this.handleKey(e);
@@ -73,7 +75,7 @@ export class CourseSelect {
     el.id = 'courseselect';
     el.className = 'screen';
     el.innerHTML =
-      '<button class="cs-back" type="button">◀ キャラ選択</button>' +
+      '<button class="cs-back" type="button">◀ もどる</button>' +
       '<div class="cs-inner">' +
       '<div class="co-tabs">' +
       '  <button class="co-tab" type="button" data-mode="course">1コース</button>' +
@@ -237,7 +239,7 @@ export class CourseSelect {
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.move(1);
     else if (e.code === 'Enter' || e.code === 'Space') this.decide();
     else if (e.code === 'Escape') this.back();
-    else if (e.code === 'Tab') {
+    else if (e.code === 'Tab' && !this.fixed) {
       e.preventDefault();
       this.setMode(this.mode === 'cup' ? 'course' : 'cup');
     }

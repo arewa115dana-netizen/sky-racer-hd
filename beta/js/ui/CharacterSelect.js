@@ -102,7 +102,7 @@ export class CharacterSelect {
     el.id = 'charselect';
     el.className = 'screen';
     el.innerHTML =
-      '<button class="cs-back" type="button">◀ タイトル</button>' +
+      '<button class="cs-back" type="button">◀ もどる</button>' +
       '<div class="cs-inner">' +
       '<div class="cs-heading">キャラクターを選ぶ</div>' +
       '<div class="cs-main">' +

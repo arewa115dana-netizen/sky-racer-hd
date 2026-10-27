@@ -13,7 +13,7 @@
 */
 
 /* ドット絵風の日本語フォント（読み込めないときは普通の文字で表示される） */
-@import url("https://fonts.googleapis.com/css2?family=DotGothic16&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap");
 
 /* ---- 画面全体：スクロール・拡大・選択・長押しメニューを無効化 ---- */
 html,
@@ -1865,4 +1865,544 @@ body.in-menu #touch-ui {
   margin-left: 10px;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.55);
+}
+
+/* ============================================================
+   夕暮れのドット（v2.5.0 の新しいデザイン）
+   どの画面も「紫の夕暮れ・クリーム色の文字・金のアクセント」と
+   「角ばった二重の枠＋ずらした影」でそろえる。古い見た目はここで上書きする
+   ============================================================ */
+:root {
+  --px-ink: #3b2a4a;      /* 濃い紫（枠・影） */
+  --px-deep: #2a1f33;     /* さらに濃い紫（箱の中の箱） */
+  --px-cream: #fff6e6;    /* 文字と枠 */
+  --px-gold: #ffd98a;     /* 選んでいる物・大事なボタン */
+  --px-muted: #b9a68f;    /* 選んでいない物の枠 */
+  --px-sub: #d9cbb8;      /* 小さな説明の文字 */
+  --px-sun: #ffe7b0;      /* 見出しの文字 */
+  --px-shadow: rgba(20, 12, 28, 0.6);
+  --px-en: "Press Start 2P", ui-monospace, monospace;
+}
+
+/* ---- 共通の部品 ---- */
+.px-en {
+  font-family: var(--px-en);
+}
+
+.px-frame {
+  background: var(--px-ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-cream), 0 0 0 6px var(--px-ink);
+}
+
+.px-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--px-cream);
+  background: var(--px-ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-cream), 0 0 0 6px var(--px-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.px-btn.main {
+  color: var(--px-ink) !important;
+  background: var(--px-gold);
+  box-shadow: 0 0 0 3px var(--px-ink), 4px 4px 0 3px var(--px-shadow);
+}
+
+.px-btn:active,
+.ms-card:active {
+  transform: translate(2px, 2px);
+}
+
+/* 画面の背景（3Dの景色の上にうすい夕暮れ色を重ねる） */
+#charselect,
+#courseselect,
+#lobby,
+#modeselect {
+  background: rgba(42, 31, 51, 0.62);
+}
+
+#menu,
+.results,
+.gp-result,
+.howto,
+.howto-screen {
+  background: rgba(42, 31, 51, 0.6);
+}
+
+.gp-card {
+  background: rgba(42, 31, 51, 0.88);
+  text-shadow: 2px 2px 0 var(--px-ink);
+}
+
+/* 大きな箱（一時停止・結果・遊び方・表彰台） */
+.menu-inner,
+.results-inner,
+.howto-inner,
+.gp-inner {
+  background: var(--px-ink);
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-cream), 0 0 0 6px var(--px-ink), 10px 10px 0 6px var(--px-shadow);
+}
+
+/* 箱の中の小さな箱 */
+.howto-col,
+.results-gp,
+.lb-choice,
+.lb-member,
+.cs-portrait,
+.lb-map {
+  background: var(--px-deep);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-muted);
+}
+
+/* ボタン（ふつう）：クリーム色の二重の枠 */
+.cs-back,
+.cs-arrow,
+.cs-icon,
+.cs-diff-btn,
+.co-tab,
+.menu-btn,
+.menu-toggle,
+.menu-step,
+.results-btn,
+.lb-btn,
+.title-howto-btn {
+  color: var(--px-cream);
+  background: var(--px-ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-cream), 0 0 0 6px var(--px-ink);
+}
+
+.cs-icon {
+  box-shadow: 0 0 0 3px var(--px-muted), 0 0 0 6px var(--px-ink);
+}
+
+/* ボタン（大事な物）：金色 */
+.cs-decide,
+.menu-btn.main,
+.results-btn.main,
+.lb-btn.main,
+.howto-close,
+.menu-toggle.on {
+  color: var(--px-ink) !important;
+  background: var(--px-gold);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-ink), 4px 4px 0 3px var(--px-shadow);
+}
+
+/* 選んでいる物：金の枠 */
+.cs-icon.selected,
+.cs-diff-btn.selected,
+.co-tab.selected,
+.lb-member.me {
+  background: var(--px-ink);
+  box-shadow: 0 0 0 3px var(--px-gold), 0 0 0 6px var(--px-ink), 0 0 12px 6px rgba(255, 217, 138, 0.35);
+}
+
+.cs-diff-btn.selected,
+.co-tab.selected {
+  color: var(--px-ink) !important;
+  background: var(--px-gold);
+}
+
+.cs-back {
+  min-height: 40px;
+}
+
+/* 見出しの文字 */
+.cs-heading,
+.cs-name,
+.menu-title,
+.results-title,
+.howto-title,
+.gp-title,
+.lb-title,
+.lb-code-big,
+.co-loading {
+  text-shadow: 2px 2px 0 var(--px-ink);
+}
+
+.results-title,
+.gp-title,
+.howto-head,
+.howto-goal b,
+.lb-title,
+.results-gp-title {
+  color: var(--px-sun);
+}
+
+.results-title {
+  font-family: var(--px-en);
+  font-size: 16px;
+  letter-spacing: 0.2em;
+}
+
+.cs-type {
+  color: var(--px-ink);
+  background: var(--px-gold);
+  border-radius: 0;
+}
+
+.cs-desc,
+.menu-label small,
+.lb-choice-text,
+.howto-pc {
+  color: var(--px-sub);
+}
+
+.cs-stat-bar i,
+.menu-bars i {
+  background: var(--px-deep);
+  border: 1px solid var(--px-muted);
+}
+
+.cs-stat-bar i.on,
+.menu-bars i.on {
+  background: var(--px-gold);
+  border-color: var(--px-gold);
+}
+
+.co-best,
+.howto dt {
+  color: var(--px-sun);
+}
+
+.results-row.me {
+  background: rgba(255, 217, 138, 0.18);
+  border-radius: 0;
+}
+
+.results-row {
+  border-bottom-color: rgba(255, 246, 230, 0.12);
+}
+
+.results-gp-row.me,
+.gp-row.me,
+.gp-stand.me .gp-name {
+  color: var(--px-gold);
+}
+
+.gp-block {
+  border: 3px solid var(--px-ink);
+  border-radius: 0;
+}
+
+.gp-stand.place1 .gp-block { background: var(--px-gold); }
+.gp-stand.place2 .gp-block { background: #e6dfd2; }
+.gp-stand.place3 .gp-block { background: #e0a878; }
+
+/* みんなで対戦の入力欄 */
+#lobby input {
+  background: var(--px-deep);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-muted);
+}
+
+#lobby input:focus {
+  box-shadow: 0 0 0 3px var(--px-gold);
+}
+
+.lb-code-big b {
+  color: var(--px-gold);
+}
+
+/* コース選択：モード選択から来たときはタブを出さない */
+#courseselect.fixed .co-tabs {
+  display: none;
+}
+
+/* ---- タイトル画面（ドット絵のロゴ） ---- */
+#title {
+  background: radial-gradient(ellipse at center, rgba(40, 28, 52, 0.1) 35%, rgba(40, 28, 52, 0.55) 100%);
+}
+
+.title-logo {
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.title-sky {
+  font-family: var(--px-en);
+  font-size: clamp(28px, 6.4vw, 60px);
+  letter-spacing: 0;
+  color: var(--px-cream);
+  text-shadow: 4px 4px 0 var(--px-ink), 8px 8px 0 rgba(59, 42, 74, 0.45);
+}
+
+.title-hd {
+  font-family: var(--px-en);
+  font-size: clamp(10px, 1.8vw, 16px);
+  margin-top: 0;
+  padding: 6px 6px 4px;
+  color: var(--px-ink);
+  background: var(--px-gold);
+  border: 0;
+  box-shadow: 3px 3px 0 var(--px-ink);
+}
+
+.title-sub {
+  margin-top: 22px;
+  font-size: clamp(18px, 3.2vw, 28px);
+  letter-spacing: 0.45em;
+  padding-left: 0.45em;
+  color: var(--px-sun);
+  text-shadow: 2px 2px 0 var(--px-ink);
+}
+
+.title-start {
+  padding: 0;
+  font-size: clamp(15px, 2.4vw, 19px);
+  letter-spacing: 0.3em;
+  color: var(--px-cream);
+  background: none;
+  border: 0;
+  text-shadow: 2px 2px 0 var(--px-ink);
+  animation: title-blink 2.4s ease-in-out infinite;
+}
+
+.title-foot {
+  font-family: var(--px-en);
+  font-size: 9px;
+  color: var(--px-cream);
+  text-shadow: 1px 1px 0 var(--px-ink);
+}
+
+.title-howto-btn {
+  left: 22px;
+  bottom: 20px;
+  min-height: 40px;
+  font-size: 14px;
+}
+
+/* ---- モード選択画面（ModeSelect.js） ---- */
+#modeselect {
+  cursor: default;
+  animation: title-in 0.4s ease both;
+}
+
+#modeselect button {
+  font-family: inherit;
+  color: var(--px-cream);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ms-inner {
+  display: flex;
+  flex-direction: column;
+  width: 780px;
+  transform-origin: center center;
+}
+
+.ms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 6px;
+}
+
+.ms-title .px-en {
+  font-size: 18px;
+  color: var(--px-cream);
+  text-shadow: 3px 3px 0 var(--px-ink);
+}
+
+.ms-title-ja {
+  margin-left: 16px;
+  font-size: 17px;
+  letter-spacing: 0.2em;
+  color: var(--px-sun);
+  text-shadow: 2px 2px 0 var(--px-ink);
+}
+
+.ms-char {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 4px;
+  font-size: 15px;
+}
+
+.ms-face {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
+
+/* 選んでいるカードを指す ▼（ドットの三角。ゆっくり上下する） */
+.ms-cursor-row {
+  position: relative;
+  height: 28px;
+}
+
+.ms-cursor {
+  position: absolute;
+  top: 8px;
+  width: 24px;
+  height: 15px;
+  margin-left: -12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5' shape-rendering='crispEdges'%3E%3Crect x='0' y='0' width='8' height='1' fill='%233b2a4a'/%3E%3Crect x='0' y='1' width='1' height='1' fill='%233b2a4a'/%3E%3Crect x='7' y='1' width='1' height='1' fill='%233b2a4a'/%3E%3Crect x='1' y='1' width='6' height='1' fill='%23ffd98a'/%3E%3Crect x='2' y='2' width='4' height='1' fill='%23ffd98a'/%3E%3Crect x='3' y='3' width='2' height='1' fill='%23ffd98a'/%3E%3C/svg%3E") no-repeat center / 100% 100%;
+  image-rendering: pixelated;
+  transition: left 0.15s steps(3);
+  animation: ms-bob 1.2s steps(2) infinite;
+}
+
+@keyframes ms-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+}
+
+.ms-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 30px;
+  padding: 0 6px;
+}
+
+.ms-card {
+  position: relative;
+  height: 200px;
+  padding: 0;
+  text-align: left;
+  background: var(--px-ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-muted), 0 0 0 6px var(--px-ink), 8px 8px 0 6px var(--px-shadow);
+}
+
+.ms-card.selected {
+  box-shadow: 0 0 0 3px var(--px-gold), 0 0 0 6px var(--px-ink), 8px 8px 0 6px var(--px-shadow);
+}
+
+.ms-img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 118px;
+  object-fit: cover;
+  image-rendering: pixelated;
+  filter: brightness(0.78);
+}
+
+.ms-card.selected .ms-img {
+  filter: none;
+}
+
+.ms-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 118px;
+  height: 3px;
+  background: var(--px-muted);
+}
+
+.ms-card.selected .ms-line {
+  background: var(--px-gold);
+}
+
+.ms-text {
+  position: absolute;
+  left: 14px;
+  right: 10px;
+  top: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ms-en {
+  font-family: var(--px-en);
+  font-size: 8px;
+  color: #d9c09a;
+}
+
+.ms-card.selected .ms-en {
+  color: var(--px-gold);
+}
+
+.ms-name {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.ms-sub {
+  font-size: 13px;
+  color: var(--px-sub);
+}
+
+.ms-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 30px;
+  padding: 0 6px;
+}
+
+.ms-back {
+  height: 44px;
+  padding: 0 8px;
+  font-size: 15px;
+  background: transparent;
+  border: 0;
+  text-shadow: 2px 2px 0 var(--px-ink);
+}
+
+.ms-foot-btns {
+  display: flex;
+  gap: 18px;
+}
+
+/* ---- 遊び方（モード選択から重ねて出すとき） ---- */
+.howto-screen {
+  cursor: default;
+  z-index: 45;
+}
+
+.howto-screen .howto {
+  position: absolute;
+}
+
+/* ---- レース中の表示（HUD）：縁取りを夕暮れの紫に ---- */
+#race-hud {
+  text-shadow:
+    2px 0 0 var(--px-ink), -2px 0 0 var(--px-ink), 0 2px 0 var(--px-ink), 0 -2px 0 var(--px-ink),
+    2px 2px 0 var(--px-ink), -2px 2px 0 var(--px-ink), 2px -2px 0 var(--px-ink), -2px -2px 0 var(--px-ink);
+}
+
+.hud-lap-time {
+  background: rgba(42, 31, 51, 0.45);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 2px rgba(255, 246, 230, 0.6);
+}
+
+.hud-gauge {
+  border: 3px solid var(--px-ink);
+  outline: 2px solid var(--px-cream);
+  border-radius: 0;
+}
+
+.hud-gauge-ticks i {
+  background: rgba(59, 42, 74, 0.8);
 }
