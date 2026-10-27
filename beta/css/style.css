@@ -2406,3 +2406,167 @@ body.in-menu #touch-ui {
 .hud-gauge-ticks i {
   background: rgba(59, 42, 74, 0.8);
 }
+
+/* ---- 設定の画面：横に広い2列（v2.6.0） ---- */
+.menu-inner.wide {
+  width: 760px;
+}
+
+.menu-inner.wide .menu-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 30px;
+  row-gap: 12px;
+}
+
+.menu-diff {
+  display: flex;
+  gap: 10px;
+}
+
+.menu-diff-btn {
+  min-width: 70px;
+  min-height: 40px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--px-cream);
+  background: var(--px-ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--px-cream), 0 0 0 6px var(--px-ink);
+  cursor: pointer;
+}
+
+.menu-diff-btn.on {
+  color: var(--px-ink) !important;
+  background: var(--px-gold);
+}
+
+/* ---- すき間を広げて、枠どうしが重ならないように（v2.6.0） ----
+   ドットの枠は「外側に描く影」なので、すき間が狭いと隣の枠と重なって見える */
+.cs-inner,
+.lb-inner,
+.ms-inner {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.cs-icons {
+  gap: 14px;
+  padding: 0 6px;
+}
+
+.cs-bottom {
+  gap: 18px;
+}
+
+.cs-main {
+  gap: 30px;
+}
+
+.cs-portrait {
+  width: 150px;
+  height: 150px;
+}
+
+.cs-info {
+  width: 380px;
+}
+
+.lb-members {
+  gap: 18px;
+}
+
+.lb-choices {
+  gap: 24px;
+}
+
+.menu-grid {
+  gap: 16px;
+}
+
+.results-buttons {
+  gap: 16px;
+  padding: 0 4px 4px;
+  box-sizing: border-box;
+}
+
+.lb-course {
+  gap: 16px;
+}
+
+/* 設定：難しさの行は横いっぱいに */
+.menu-row-full {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  gap: 24px;
+}
+
+.menu-inner.wide .menu-label {
+  font-size: 16px;
+}
+
+.menu-inner.wide {
+  gap: 12px;
+  padding: 12px 24px 18px;
+}
+
+/* ---- コース選択：くるくる回るミニチュア（v2.6.0） ---- */
+#courseselect .co-map-box {
+  width: 260px;
+  height: 180px;
+  background: radial-gradient(ellipse at 50% 60%, rgba(255, 217, 138, 0.22), rgba(255, 217, 138, 0) 70%), var(--px-deep);
+}
+
+.co-mini {
+  display: none;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* ひとりで走る（コース）ではミニチュア、グランプリ（カップ）ではトロフィーの絵 */
+#courseselect:not(.cup-mode):not(.no-mini) .co-mini {
+  display: block;
+}
+
+#courseselect:not(.cup-mode):not(.no-mini) .co-map {
+  display: none;
+}
+
+#courseselect .cs-info {
+  width: 360px;
+}
+
+/* みんなで対戦の入口：「部屋に入る」の入力欄とボタンが箱からはみ出さないように */
+.lb-choice {
+  width: 300px;
+  padding: 14px 16px 18px;
+  box-sizing: border-box;
+}
+
+.lb-join-row {
+  gap: 16px;
+}
+
+.lb-code {
+  width: 6.2em;
+}
+
+.lb-join-row .lb-btn {
+  min-width: 80px;
+}
+
+.menu-label small {
+  white-space: nowrap;
+}
+
+/* キャラ選択：とくい（v2.6.0） */
+.cs-perk {
+  margin: -2px 0 6px;
+  font-size: 13px;
+  color: var(--px-gold);
+}

@@ -40,6 +40,9 @@ export class ModeSelect {
     this.onSound = o.onSound || (() => {});
     this.index = Math.max(0, MODES.findIndex((m) => m.key === o.mode));
     this.done = false;
+    // 表示した直後の入力は受け付けない。タイトルをタップした指の「クリック」が、
+    // 出たばかりのこの画面のカードに届いて、勝手に決定してしまうのを防ぐ
+    this.readyAt = performance.now() + CONFIG.ui.screenInputDelay * 1000;
 
     const el = document.createElement('div');
     el.id = 'modeselect';
@@ -91,15 +94,19 @@ export class ModeSelect {
 
     // カード：触れたら選び、押したら決定
     this.cards.forEach((card, i) => {
-      card.addEventListener('pointerenter', () => this.select(i, true));
+      // マウスを乗せたら選ぶ（指のときは選ばない。指はタップで決定）
+      card.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse' && this.ready()) this.select(i, true);
+      });
       card.addEventListener('click', () => {
+        if (!this.ready()) return;
         this.select(i, true);
         this.decide();
       });
     });
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-action]');
-      if (!b || this.done) return;
+      if (!b || this.done || !this.ready()) return;
       const a = b.dataset.action;
       if (a === 'back') this.leave(o.onBack);
       else if (a === 'character') this.leave(o.onCharacter, 'decide');
@@ -108,7 +115,7 @@ export class ModeSelect {
     });
 
     this.onKey = (e) => {
-      if (this.done || this.blocked) return;
+      if (this.done || this.blocked || !this.ready()) return;
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.select((this.index + MODES.length - 1) % MODES.length);
       else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.select((this.index + 1) % MODES.length);
       else if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); this.decide(); }
@@ -121,6 +128,10 @@ export class ModeSelect {
     this.select(this.index, true);
     this.fit();
     requestAnimationFrame(() => this.placeCursor());
+  }
+
+  ready() {
+    return performance.now() >= this.readyAt;
   }
 
   select(i, silent) {

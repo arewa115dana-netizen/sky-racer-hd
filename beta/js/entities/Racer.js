@@ -2,7 +2,7 @@
   ファイル名 : Racer.js
   保存場所   : /js/entities
   役割       : レーサー1人の状態と物理。プレイヤーもCPUも同じ計算で走る
-  バージョン : 1.15.0（Phase15：坂で速さが変わる）
+  バージョン : 2.6.0（ドリフトを全員強く。キャラごとの「とくい」）
   メモ       : 状態は 走行（drive）・ドリフト（drift）・空中（air）・復帰中（respawn）。
                空中では上下に動ける（飛行の能力で速さが変わる）。
                ドリフト：地上でドリフトボタンを押しながら曲がると始まり、火花を2段階で溜め、
@@ -89,6 +89,13 @@ export class Racer {
     // ドリフトの能力：火花の溜まる速さと、ミニターボの長さ
     this.driftChargeRate = 1 + (st.drift - 3) * r.driftChargePerStat;
     this.turboScale = 1 + (st.drift - 3) * r.turboPerStat;
+    this.driftSpeedScale = r.driftSpeedScale + (st.drift - 3) * r.driftSpeedPerStat;
+    // とくい（キャラごとの小さな個性。Characters.js の perk）
+    const perk = character.perk || {};
+    this.wallFrictionScale = perk.wallFriction !== undefined ? perk.wallFriction : 1;   // 壁にこすれたときの減速
+    this.bumpSlowScale = perk.bumpSlow !== undefined ? perk.bumpSlow : 1;               // 追突されたときの減速
+    this.ringBoostScale = perk.ringBoost !== undefined ? perk.ringBoost : 1;            // 金のリングの加速の長さ
+    this.gaugeScale = perk.gauge !== undefined ? perk.gauge : 1;                        // 青いリングで溜まるゲージ
   }
 
   // 指定の位置に置く（スタート時・復帰時）
@@ -164,7 +171,7 @@ export class Racer {
       const slope = track.slopeAt(this.s) * r.slopeSpeed;
       top *= 1 - Math.max(-r.slopeLimit, Math.min(r.slopeLimit, slope));
     }
-    if (drifting) top *= r.driftSpeedScale;
+    if (drifting) top *= this.driftSpeedScale;
     let target = boosting ? top * this.boostMultiplier : top;
     if (input.brake) target = 0;
     if (this.speed < target) {
@@ -239,7 +246,7 @@ export class Racer {
       this.wallHit = true;
     }
     if (this.wallHit) {
-      this.speed *= Math.max(0, 1 - r.wallFriction * dt);
+      this.speed *= Math.max(0, 1 - r.wallFriction * this.wallFrictionScale * dt);
     }
 
     if (zone === 'air') {

@@ -5,7 +5,7 @@
                  1コース   … 選んだコースの形を上から見た地図で大きく表示し、名前・ひとこと・難しさの★・自己ベストを見せる
                  グランプリ … カップ（続けて走るコースの組）を選ぶ。走るコースと、これまでの最高順位（トロフィー）を見せる
                下のアイコンで選んで「決定」。準備中のコースは「？」で表示し、選べない
-  バージョン : 1.18.0（Phase18：「みんなで対戦」のタブ）
+  バージョン : 2.6.0（コースは、くるくる回る立体のミニチュアで見せる）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」／左上「◀ キャラ選択」
                PC     … ← → で選ぶ、Enter・スペースで決定、Esc でキャラ選択へ
   メモ       : 決定したあと、コースの読み込み中は「準備中…」を出す（showLoading）。
@@ -13,6 +13,7 @@
 */
 
 import { CONFIG } from '../config.js';
+import { CourseMiniature } from './CourseMiniature.js';
 
 export class CourseSelect {
   /**
@@ -83,7 +84,7 @@ export class CourseSelect {
       '  <button class="co-tab co-tab-online" type="button" data-mode="online">みんなで対戦</button>' +
       '</div>' +
       '<div class="cs-main">' +
-      '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas></div>' +
+      '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas><canvas class="co-mini"></canvas></div>' +
       '  <div class="cs-info">' +
       '    <div class="cs-name"></div>' +
       '    <div class="co-stars"></div>' +
@@ -104,6 +105,9 @@ export class CourseSelect {
 
     this.inner = el.querySelector('.cs-inner');
     this.mapCanvas = el.querySelector('.co-map');
+    // コースの立体ミニチュア（描けない端末では、今までどおり上から見た地図）
+    this.mini = new CourseMiniature(el.querySelector('.co-mini'));
+    if (!this.mini.renderer) el.classList.add('no-mini');
     this.nameEl = el.querySelector('.cs-name');
     this.starsEl = el.querySelector('.co-stars');
     this.descEl = el.querySelector('.cs-desc');
@@ -179,7 +183,8 @@ export class CourseSelect {
       : '';
     this.decideBtn.disabled = !course.ready;
     this.iconButtons.forEach((b, k) => b.classList.toggle('selected', k === i));
-    drawMap(this.mapCanvas, course, 8);
+    if (this.mini.renderer) this.mini.setCourse(course);
+    else drawMap(this.mapCanvas, course, 8);
     if (!silent) this.onSound('select');
   }
 
@@ -247,6 +252,10 @@ export class CourseSelect {
 
   // ふわっと消してから取り除く
   close() {
+    if (this.mini) {
+      this.mini.dispose();
+      this.mini = null;
+    }
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('resize', this.onResize);
     this.el.classList.add('hide');

@@ -3,8 +3,8 @@
   保存場所   : /js/ui
   役割       : キャラクター選択画面。選んだキャラを大きく表示してゆっくり回し（全方向のドット絵）、
                名前・タイプ・説明・5つの能力の棒グラフを見せる。下の顔アイコンで選んで「決定」。
-               CPUの強さ（難しさ：やさしい／ふつう／むずかしい）もここで選ぶ
-  バージョン : 1.0.0（Phase12 Step12-3）
+               （難しさは v2.6.0 から設定の画面で選ぶ）
+  バージョン : 2.6.0（難しさは設定の画面へ移した）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／難しさのボタン／「決定」
                PC     … ← → で選ぶ、↑ ↓ で難しさ、Enter・スペースで決定、Esc でタイトルへ、数字キー 1〜6
   メモ       : ドット絵は、ゲームで使っている画像（atlas）から切り抜いて表示する（新しい画像は作らない）
@@ -111,10 +111,11 @@ export class CharacterSelect {
       '    <div class="cs-name"></div>' +
       '    <div class="cs-type"></div>' +
       '    <div class="cs-desc"></div>' +
+      '    <div class="cs-perk"></div>' +
       '    <div class="cs-stats"></div>' +
       '  </div>' +
       '</div>' +
-      '<div class="cs-diff"><span class="cs-diff-label">難しさ</span><span class="cs-diff-btns"></span></div>' +
+      (this.difficulties.length ? '<div class="cs-diff"><span class="cs-diff-label">難しさ</span><span class="cs-diff-btns"></span></div>' : '') +
       '<div class="cs-bottom">' +
       '  <button class="cs-arrow cs-prev" type="button">◀</button>' +
       '  <div class="cs-icons"></div>' +
@@ -130,6 +131,7 @@ export class CharacterSelect {
     this.nameEl = el.querySelector('.cs-name');
     this.typeEl = el.querySelector('.cs-type');
     this.descEl = el.querySelector('.cs-desc');
+    this.perkEl = el.querySelector('.cs-perk');
 
     // 能力の棒グラフ（5マス）
     const statsEl = el.querySelector('.cs-stats');
@@ -167,7 +169,7 @@ export class CharacterSelect {
 
     // 難しさのボタン
     const diffEl = el.querySelector('.cs-diff-btns');
-    this.diffButtons = this.difficulties.map((d) => {
+    this.diffButtons = !diffEl ? [] : this.difficulties.map((d) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'cs-diff-btn';
@@ -212,6 +214,7 @@ export class CharacterSelect {
     this.nameEl.textContent = ch.name;
     this.typeEl.textContent = ch.type;
     this.descEl.textContent = DESCRIPTIONS[ch.id] || '';
+    this.perkEl.textContent = ch.perkText ? '★ ' + ch.perkText : '';
     for (const [key] of STATS) {
       const value = ch.stats[key];
       this.statCells[key].forEach((cell, k) => cell.classList.toggle('on', k < value));

@@ -374,7 +374,7 @@ export class RaceSession {
   onRing(racer, ring) {
     const c = CONFIG.rings;
     if (ring.type === 'gauge') {
-      racer.gauge = Math.min(1, racer.gauge + c.gaugeAmount);
+      racer.gauge = Math.min(1, racer.gauge + c.gaugeAmount * (racer.gaugeScale || 1));
       if (racer.isPlayer) {
         // 前のリングからすぐなら連続ボーナス：1つごとに音を全音（半音2つ）ずつ上げる
         const a = CONFIG.audio;
@@ -386,7 +386,7 @@ export class RaceSession {
         this.playerRings += 1;
       }
     } else if (ring.type === 'boost') {
-      racer.startBoost(c.boostTime);
+      racer.startBoost(c.boostTime * (racer.ringBoostScale || 1));
       if (racer.isPlayer) {
         this.playerRings += 1;
         this.lastRingTime = this.race.time;   // ブーストリングでも連続は途切れない

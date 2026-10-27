@@ -5,7 +5,7 @@
                  一時停止 … 続ける／やり直す／設定／メニューへ／タイトルへ
                settingsOnly を渡すと設定の画面だけを出す（モード選択の「設定」。「戻る」で閉じる）
                  設定     … 音量・BGM・省電力モード・仕上げ処理・酔いにくいモード・デバッグ表示（変えるとすぐ反映され、保存される）
-  バージョン : 2.4.0（設定に「酔いにくいモード」）
+  バージョン : 2.6.0（設定に「難しさ」。設定は横に広い2列の画面）
   メモ       : ボタンが押されたときの中身は Screens.js から渡された関数が行う（この画面は見た目と操作だけ）。
                画面に収まらないときは、中身の箱ごと自動で縮める
 */
@@ -48,6 +48,7 @@ export class PauseMenu {
   // ---- 一時停止の画面 ----
   showPause() {
     this.view = 'pause';
+    this.inner.classList.remove('wide');
     if (this.o.online) {
       // みんなで対戦：レースは止まらない（他の人は走り続けている）
       this.inner.innerHTML =
@@ -76,6 +77,7 @@ export class PauseMenu {
   // ---- 設定の画面 ----
   showSettings() {
     this.view = 'settings';
+    this.inner.classList.add('wide');
     const s = this.settings;
     // 0〜10 の段階を − ＋ で変える行
     const level = (key, value) => {
@@ -108,6 +110,11 @@ export class PauseMenu {
       toggle('comfort', s.comfort) + '</div>' +
       '  <div class="menu-row"><span class="menu-label">デバッグ表示<small>左上のFPSなどの表示</small></span>' +
       toggle('debug', s.debug) + '</div>' +
+      (this.o.difficulties && this.o.difficulties.length
+        ? '  <div class="menu-row menu-row-full"><span class="menu-label">難しさ<small>CPUの強さ（次のレースから）</small></span><span class="menu-diff">' +
+          this.o.difficulties.map((d) => '<button class="menu-diff-btn' + (s.difficulty === d.key ? ' on' : '') + '" type="button" data-action="diff:' + d.key + '">' + d.label + '</button>').join('') +
+          '</span></div>'
+        : '') +
       '</div>' +
       '<button class="menu-btn" type="button" data-action="back">◀ 戻る</button>';
     this.fit();
@@ -131,6 +138,13 @@ export class PauseMenu {
       const v = Math.max(0, Math.min(10, this.settings[key] + Number(step)));
       this.settings[key] = v;
       o.onChange(key, v);
+      this.showSettings();
+    } else if (action.startsWith('diff:')) {
+      const key = action.slice(5);
+      if (this.settings.difficulty !== key) {
+        this.settings.difficulty = key;
+        o.onChange('difficulty', key);
+      }
       this.showSettings();
     } else if (action.startsWith('toggle:')) {
       const key = action.slice(7);

@@ -37,6 +37,9 @@ const SETTINGS_FORMAT = 2;
 // カメラのふだんの値（酔いにくいモードを切ったときに戻す）
 const BASE_CAMERA = { ...CONFIG.camera };
 
+// 難しさの一覧（設定の画面に出す）
+const DIFFICULTIES = CONFIG.difficulty.order.map((key) => ({ key, label: CONFIG.difficulty.levels[key].label }));
+
 // CPUの腕前の元の値（難しさに合わせて、毎回ここから計算し直す）
 const BASE_SKILLS = CONFIG.ai.personalities.map((p) => p.skill);
 
@@ -172,6 +175,7 @@ export class Screens {
           settingsOnly: true,
           settings: { ...this.settings },
           canPostfx: this.canPostfx(),
+          difficulties: DIFFICULTIES,
           onResume: () => {
             this.menu.close();
             this.menu = null;
@@ -211,9 +215,7 @@ export class Screens {
       },
       onBack: () => this.showModeSelect(),
       onSound: (name) => g.audio.play(name),   // 'select'（選ぶ）・'decide'（決定）
-      difficulties: CONFIG.difficulty.order.map((key) => ({ key, label: CONFIG.difficulty.levels[key].label })),
-      difficulty: this.settings.difficulty,
-      onDifficulty: (key) => this.setSetting('difficulty', key)
+      difficulties: []   // 難しさは設定の画面へ移した
     });
   }
 
@@ -637,6 +639,7 @@ export class Screens {
       onLeave: () => this.leaveRoom(),
       settings: { ...this.settings },
       canPostfx: this.canPostfx(),
+      difficulties: DIFFICULTIES,
       onResume: () => this.closePauseMenu(true),
       onRetry: () => {
         this.closePauseMenu(true);   // 操作部品を戻してから、最初からやり直す

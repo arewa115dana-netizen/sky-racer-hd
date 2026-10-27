@@ -69,7 +69,7 @@ export function resolveCollisions(racers, track) {
         const rear = ds > 0 ? b : a;
         const dv = rear.speed - front.speed;
         if (dv > 0) {
-          if (!rear.remote) rear.speed -= dv * c.rearSlow;
+          if (!rear.remote) rear.speed -= dv * c.rearSlow * (rear.bumpSlowScale || 1);
           if (!front.remote) front.speed += dv * c.frontPush;
         }
         const gap = c.alongSize - Math.abs(ds);
