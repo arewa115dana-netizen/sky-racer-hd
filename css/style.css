@@ -35,6 +35,13 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iPhone の Safari：画面の中の部品をダブルタップしても拡大しない（操作部品などで none を指定している所はそちらが優先） */
+*,
+*::before,
+*::after {
+  touch-action: manipulation;
+}
+
 /* ---- ゲーム画面 ---- */
 #game {
   position: fixed;

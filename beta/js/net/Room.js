@@ -5,7 +5,7 @@
                参加した人（ゲスト）はホストとだけつながる（ゲスト同士の知らせはホストが中継する）。
                  ホスト … 6桁の部屋番号から作った名前で仲介サーバーに登録し、来た人を迎え入れる。メンバーとコースを全員に知らせる
                  ゲスト … 部屋番号のホストに申し込み、迎え入れてもらう
-  バージョン : 1.20.0（Phase20：部屋番号6けた・やりとりの暗号化・届いた知らせの確認）
+  バージョン : 1.21.0（Phase21：直接つながらないときは、伝言板を中継にして遊べる）
   メモ       : 知らせは { t: 種類, ... } の形。部屋の中の知らせ（hello / welcome / reject / room / prof /
                ping / pong / bye）はここで処理し、それ以外（レースの知らせ）は on() で登録した関数に渡す。
                メンバーの番号（pid）：ホストは 0、ゲストは来た順に 1, 2, 3 …
@@ -14,7 +14,7 @@
 import { CONFIG } from '../config.js';
 import { createSignal } from './Signal.js';
 import { roomSecrets } from './Secure.js';
-import { Link } from './Link.js';
+import { Link, RelayLink } from './Link.js';
 
 export class Room {
   /**
@@ -144,6 +144,25 @@ export class Room {
       entry = { link, pid: -1, rtt: 0, lastSeen: performance.now() };
       this.links.set(src, entry);
       link.handleSignal('OFFER', payload);
+    } else if (type === 'RELAY') {
+      // 中継で来た人（直接つながらなかった人）。途中まで作っていた直接の通り道は捨てる
+      if (sig.route.kind !== 'mqtt') return;
+      if (!entry || !entry.link.isRelay) {
+        if (entry) {
+          if (entry.pid >= 0) return;
+          entry.link.onClose = () => {};
+          entry.link.close();
+        }
+        const link = new RelayLink({
+          signal: sig,
+          peerId: src,
+          onMessage: (m) => this.hostReceive(src, m),
+          onClose: () => this.dropGuest(src)
+        });
+        entry = { link, pid: -1, rtt: 0, lastSeen: performance.now() };
+        this.links.set(src, entry);
+      }
+      entry.link.receive(payload);
     } else if (entry && (type === 'CANDIDATE' || type === 'ANSWER')) {
       entry.link.handleSignal(type, payload);
     }
@@ -166,7 +185,7 @@ export class Room {
       }
       const pid = Math.max(0, ...this.members.map((x) => x.pid)) + 1;
       entry.pid = pid;
-      this.members.push({ pid, name: cleanName(m.name), char: clampChar(m.char), host: false });
+      this.members.push({ pid, name: cleanName(m.name), char: clampChar(m.char), host: false, relay: !!entry.link.isRelay });
       entry.link.send({ t: 'welcome', pid, code: this.code });
       this.broadcastRoom();
       return;
@@ -273,6 +292,7 @@ export class Room {
     const routes = CONFIG.net.routes;
     const errors = [];
     let sec = null;
+    let relayOnly = false;   // 直接つながらないと分かったら、残りのルートは中継で試す
     const tryRoute = (k) => {
       if (k >= routes.length || this.closed) {
         const notFound = errors.filter((e) => e.notFound).length;
@@ -283,12 +303,15 @@ export class Room {
         this.close(true);
         return Promise.reject(new Error(text + '（' + detail + '）'));
       }
-      if (k > 0 && this.onProgress) this.onProgress(routes[k].name + 'で試しています…');
-      return this.joinVia(routes[k], code, sec).catch((err) => {
+      // 中継は伝言板（MQTT）でしかできない
+      if (relayOnly && routes[k].kind !== 'mqtt') return tryRoute(k + 1);
+      if (k > 0 && this.onProgress) this.onProgress(routes[k].name + (relayOnly ? 'の中継で' : 'で') + '試しています…');
+      return this.joinVia(routes[k], code, sec, relayOnly).catch((err) => {
         if (err.final) {
           this.close(true);
           throw err;
         }
+        if (err.directFailed) relayOnly = true;
         errors.push(err);
         return tryRoute(k + 1);
       });
@@ -300,17 +323,22 @@ export class Room {
     }, () => Promise.reject(new Error('この端末では暗号の仕組みが使えません')));
   }
 
-  // 1つのルートで部屋に入ってみる
-  joinVia(route, code, sec) {
+  // 1つのルートで部屋に入ってみる。
+  // まず直接の通り道を作り、だめなら（伝言板のルートなら）そのまま中継に切り替える。
+  // relayOnly = true なら最初から中継で
+  joinVia(route, code, sec, relayOnly) {
     return new Promise((resolve, reject) => {
       let settled = false;
       let link = null;
+      let iceTimer = 0;
+      const canRelay = route.kind === 'mqtt';
       const hostId = CONFIG.net.idPrefix + sec.id;
       const myId = CONFIG.net.idPrefix + 'g' + Math.random().toString(36).slice(2, 12);
       const done = (err, opts) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        clearTimeout(iceTimer);
         if (err) {
           if (link) {
             link.onClose = () => {};
@@ -324,63 +352,127 @@ export class Room {
           resolve();
         }
       };
-      const timer = setTimeout(() => {
-        // 返事が来ない：部屋がない（MQTT では「いない」と教えてもらえない）か、届かない
-        done(route.name + '：' + (link && link.answered ? '時間切れ' : '部屋の返事なし'), { notFound: !(link && link.answered) });
-      }, CONFIG.net.routeTimeout * 1000);
+      let timer = 0;
+      const startTimer = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          if (link && link.answered && !link.isRelay) {
+            directFailed();
+            return;
+          }
+          // 返事が来ない：部屋がない（MQTT では「いない」と教えてもらえない）か、届かない
+          done(route.name + '：' + (link && link.isRelay ? '中継の返事なし' : '部屋の返事なし'), { notFound: !(link && link.isRelay) });
+        }, CONFIG.net.routeTimeout * 1000);
+      };
+      startTimer();
+
+      // 部屋に迎え入れてもらえた・断られた（直接でも中継でも同じ）
+      const onHostMessage = (m) => {
+        if (m.t === 'welcome' && !settled) {
+          this.myPid = m.pid;
+          this.hostLink = link;
+          this.relay = !!link.isRelay;
+          if (link.isRelay) {
+            // 中継：伝言板がそのまま通り道なので、閉じない
+            this.signals = [sig];
+          } else {
+            // 直接：つながったので、つなぎ合わせ係はもういらない
+            sig.close();
+          }
+          link.onClose = () => this.lost('ホストとの接続が切れました');
+          // ホストから長い間なにも届かなければ、部屋はなくなったとみなす
+          this.lastHostSeen = performance.now();
+          this.pingTimer = setInterval(() => {
+            const now = performance.now();
+            // 自分のアプリが裏に回って止まっていた直後は、数え直す
+            if (this.lastCheck && now - this.lastCheck > 6000) this.lastHostSeen = now;
+            this.lastCheck = now;
+            if (now - this.lastHostSeen > CONFIG.net.hostSilentLimit * 1000) this.lost('ホストとの接続が切れました');
+          }, 2000);
+          done(null);
+        } else if (m.t === 'reject') {
+          done(REJECT_TEXT[m.reason] || '部屋に入れませんでした', { final: true });
+        } else if (settled) {
+          this.guestReceive(m);
+        }
+      };
+
+      // 中継に切り替える（または最初から中継）
+      const startRelay = () => {
+        if (link) {
+          link.onClose = () => {};
+          link.close();
+        }
+        clearTimeout(iceTimer);
+        if (this.onProgress) this.onProgress('直接つながらないので、中継で試しています…（' + route.name + '）');
+        link = new RelayLink({
+          signal: sig,
+          peerId: hostId,
+          onMessage: onHostMessage,
+          onClose: () => done(route.name + '：中継が切れました')
+        });
+        this.signals = [sig];
+        startTimer();
+        link.send({ t: 'hello', v: CONFIG.VERSION, name: this.name, char: this.char });
+      };
+
+      // 返事は来たのに直接つながらない（回線の組み合わせの問題）
+      const directFailed = () => {
+        if (settled) return;
+        if (canRelay) startRelay();
+        else done(route.name + '：直接つながらない', { directFailed: true });
+      };
+
       const sig = createSignal(route, myId, {
         key: sec.key,
         onOpen: () => {
+          this.signals = [sig];
+          if (relayOnly) {
+            startRelay();
+            return;
+          }
           link = new Link({
             signal: sig,
             peerId: hostId,
             connId: 'c' + Math.random().toString(36).slice(2, 10),
             caller: true,
             onOpen: () => {
+              clearTimeout(iceTimer);
               link.send({ t: 'hello', v: CONFIG.VERSION, name: this.name, char: this.char });
             },
-            onMessage: (m) => {
-              if (m.t === 'welcome') {
-                this.myPid = m.pid;
-                this.hostLink = link;
-                // つながったので、つなぎ合わせ係はもういらない
-                sig.close();
-                link.onClose = () => this.lost('ホストとの接続が切れました');
-                // ホストから長い間なにも届かなければ、部屋はなくなったとみなす
-                this.lastHostSeen = performance.now();
-                this.pingTimer = setInterval(() => {
-                  const now = performance.now();
-                  // 自分のアプリが裏に回って止まっていた直後は、数え直す
-                  if (this.lastCheck && now - this.lastCheck > 6000) this.lastHostSeen = now;
-                  this.lastCheck = now;
-                  if (now - this.lastHostSeen > CONFIG.net.hostSilentLimit * 1000) this.lost('ホストとの接続が切れました');
-                }, 2000);
-                done(null);
-              } else if (m.t === 'reject') {
-                done(REJECT_TEXT[m.reason] || '部屋に入れませんでした', { final: true });
-              } else if (settled) {
-                this.guestReceive(m);
-              }
-            },
+            onMessage: onHostMessage,
             onClose: () => {
-              // 返事は来たのに直接つながらない（回線の組み合わせの問題。ルートを変えても同じ）
-              done('ホストと直接つながりませんでした。同じWi-Fiどうしなどで試してください（' + route.name + '）', { final: !!link.answered });
+              if (link.answered) directFailed();
+              else done(route.name + '：通り道を作れない');
             }
           });
-          this.signals = [sig];
         },
         onTaken: () => done(route.name + '：名前が重なりました'),
         onMessage: (type, src, payload) => {
-          if (src !== hostId) return;
+          if (src !== hostId || !link) return;
           if (type === 'EXPIRE') {
             done(route.name + '：部屋なし', { notFound: true });
-          } else if (link) {
-            if (type === 'ANSWER') link.answered = true;
+          } else if (type === 'RELAY') {
+            if (link.isRelay) link.receive(payload);
+          } else if (!link.isRelay) {
+            if (type === 'ANSWER' && !link.answered) {
+              link.answered = true;
+              // 返事が来たら、直接の通り道ができるまで少しだけ待つ。だめなら中継へ
+              iceTimer = setTimeout(() => {
+                if (!link.isOpen) directFailed();
+              }, CONFIG.net.directWait * 1000);
+            }
             link.handleSignal(type, payload);
           }
         },
         onError: (reason) => {
-          // つながった後や、もう返事をもらっていれば、つなぎ合わせ係が切れても続けられる
+          if (link && link.isRelay) {
+            // 中継中に伝言板が切れたら、もう続けられない
+            if (settled) this.lost('中継が切れました');
+            else done(reason);
+            return;
+          }
+          // 直接つながった後や、もう返事をもらっていれば、つなぎ合わせ係が切れても続けられる
           if (!settled && !(link && link.answered)) done(reason);
         }
       });
@@ -397,7 +489,8 @@ export class Room {
         pid: Number.isInteger(x && x.pid) ? x.pid : -1,
         name: cleanName(x && x.name),
         char: clampChar(x && x.char),
-        host: !!(x && x.host)
+        host: !!(x && x.host),
+        relay: !!(x && x.relay)
       }));
       this.course = Number.isInteger(m.course) ? m.course : 0;
       this.locked = !!m.locked;

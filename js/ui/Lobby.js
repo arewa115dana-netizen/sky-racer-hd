@@ -5,7 +5,7 @@
                  入口 … 名前を決めて「部屋を作る」か、友達の部屋番号（6桁）を入れて「入る」
                  部屋 … 部屋番号を大きく出し、メンバー（最大4人。あきはCPU）を並べる。
                         ホストはコースを選んで「スタート」。ゲストはホストのスタートを待つ
-  バージョン : 1.20.0（Phase20：部屋番号を6けたに）
+  バージョン : 1.21.0（Phase21：中継でつながっている人に「中継」と表示）
   メモ       : つなぐ処理は Screens.js（Room.js）が行う。この画面は見た目と操作だけ
 */
 
@@ -182,7 +182,7 @@ export class Lobby {
         html += '<div class="lb-member' + (m.pid === room.myPid ? ' me' : '') + '">' +
           '<canvas class="lb-face" width="' + CELL + '" height="' + CELL + '" data-char="' + m.char + '"></canvas>' +
           '<div class="lb-member-name">' + m.name + '</div>' +
-          '<div class="lb-member-tag">' + (m.host ? 'ホスト' : '') + (m.pid === room.myPid ? (m.host ? '・' : '') + 'あなた' : '') + '</div>' +
+          '<div class="lb-member-tag">' + [m.host ? 'ホスト' : '', m.pid === room.myPid ? 'あなた' : '', m.relay ? '中継' : ''].filter(Boolean).join('・') + '</div>' +
           '</div>';
       } else {
         html += '<div class="lb-member empty"><div class="lb-empty-face">CPU</div><div class="lb-member-name">あき</div><div class="lb-member-tag"></div></div>';

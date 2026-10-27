@@ -4,7 +4,7 @@
   役割       : 相手のスマホ1台との直接の通り道（WebRTC）。通り道は2本：
                  c … 確実に届く（部屋の情報・スタート・ゴールなど、落としてはいけない知らせ）
                  u … 届かなくても待たない（1秒に何回も送る位置。古い位置を待つより次の位置を使う）
-  バージョン : 1.20.0（Phase20：大きすぎる・形の違う知らせは無視）
+  バージョン : 1.21.0（Phase21：直接つながらないとき用の中継の通り道 RelayLink）
   メモ       : つなぎ始め（申し込み・返事・通り道の候補）は Signal.js（仲介サーバー）経由で運ぶ。
                参加する人が申し込み（offer）、部屋を作った人が返事（answer）をする
 */
@@ -164,6 +164,58 @@ export class Link {
       try { ch.close(); } catch (e) { /* もう閉じている */ }
     }
     try { this.pc.close(); } catch (e) { /* もう閉じている */ }
+    this.onClose();
+  }
+}
+
+// ==== 中継の通り道（直接つながらないとき用） ====
+// つなぎ合わせに使っている公開の伝言板（MQTT）を、そのままやりとりの通り道にする。
+// 直接より遅くなる（0.1〜0.3秒ほど）が、どんな回線の組み合わせでもつながりやすい。
+// 中身は部屋の鍵で暗号化される（Signal.js）。位置は送りすぎないよう、1秒に約11回までにする
+export class RelayLink {
+  /**
+   * @param {object} o
+   * @param {Signal} o.signal  伝言板との連絡（MQTT）
+   * @param {string} o.peerId  相手の名前
+   * @param {function} o.onMessage 届いた（中身のオブジェクト）
+   * @param {function} o.onClose   切れた
+   */
+  constructor(o) {
+    this.isRelay = true;
+    this.signal = o.signal;
+    this.peerId = o.peerId;
+    this.onMessage = o.onMessage || (() => {});
+    this.onClose = o.onClose || (() => {});
+    this.isOpen = true;
+    this.closed = false;
+    this.lastFast = 0;
+  }
+
+  // 伝言板から届いた中身（Link と同じ確認をしてから渡す）
+  receive(m) {
+    if (this.closed || !m || typeof m !== 'object' || typeof m.t !== 'string') return;
+    this.onMessage(m);
+  }
+
+  send(obj) {
+    if (!this.closed) this.signal.send('RELAY', this.peerId, obj);
+  }
+
+  sendFast(obj) {
+    const now = performance.now();
+    if (now - this.lastFast < 90) return;
+    this.lastFast = now;
+    this.send(obj);
+  }
+
+  handleSignal() {
+    // 中継では使わない
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.isOpen = false;
     this.onClose();
   }
 }

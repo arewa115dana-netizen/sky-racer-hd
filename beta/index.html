@@ -5,7 +5,7 @@
   役割       : ゲームの入口。画面の土台、Three.jsの読み込み設定、
                エラー表示の準備、更新とオフラインの仕組み（sw.js）の登録、
                ホーム画面に追加したときの名前とアイコン（manifest.json）の指定
-  バージョン : 0.12.2（Phase12 Step12-2）
+  バージョン : 2.3.0（Phase21：iPhone の Safari で、ダブルタップ・ピンチで拡大されないように）
   メモ       : 読み込み失敗を画面に出すのはプログラム（script）だけ。
                フォントなど、なくてもゲームが動くものの失敗は画面に出さない（通信の悪い所でも遊べるように）
 -->
@@ -70,6 +70,46 @@
           showError('起動できませんでした。\n・通信状態を確認して再読み込みしてください\n・js/main.js のファイル名と保存場所を確認してください');
         }
       }, 10000);
+    })();
+  </script>
+
+  <!-- iPhone の Safari は「拡大しない」の指定を無視するので、ダブルタップ・ピンチでの拡大をここで止める。
+       それでも拡大されてしまったら、元の大きさに戻す -->
+  <script>
+    (function () {
+      // ピンチ（2本指）での拡大を止める（Safari だけにある知らせ）
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (name) {
+        document.addEventListener(name, function (e) { e.preventDefault(); }, { passive: false });
+      });
+      // ダブルタップでの拡大を止める（ボタンと入力欄は、押した反応を消さないよう除く）
+      var lastTouch = 0;
+      document.addEventListener('touchend', function (e) {
+        var now = Date.now();
+        var t = e.target;
+        var keep = t && t.closest && t.closest('button, input, a');
+        if (now - lastTouch < 350 && !keep) e.preventDefault();
+        lastTouch = now;
+      }, { passive: false });
+      document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+      // 拡大されてしまったら戻す（拡大の指定を書き直すと、Safari は元の大きさに戻る）
+      var meta = document.querySelector('meta[name=viewport]');
+      var base = meta ? meta.getAttribute('content') : '';
+      var timer = 0;
+      function resetZoom() {
+        if (!meta || !window.visualViewport || window.visualViewport.scale <= 1.01) return;
+        meta.setAttribute('content', base + ', minimum-scale=1');
+        setTimeout(function () { meta.setAttribute('content', base); }, 300);
+      }
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function () {
+          clearTimeout(timer);
+          timer = setTimeout(resetZoom, 400);
+        });
+      }
+      document.addEventListener('touchend', function () {
+        clearTimeout(timer);
+        timer = setTimeout(resetZoom, 600);
+      });
     })();
   </script>
 

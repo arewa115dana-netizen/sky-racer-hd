@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 2.2.0（Phase20：みんなで対戦の仕上げ）
+  バージョン : 2.3.0（Phase21：iPhone 対応。直接つながらないときの中継と、拡大の防止）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '2.2.1',
+  VERSION: '2.3.0',
 
   // ゲームループ
   loop: {
@@ -425,6 +425,7 @@ export const CONFIG = {
       { name: 'ルート3', kind: 'mqtt', url: 'wss://broker.hivemq.com:8884/mqtt' }
     ],
     mqttTopic: 'skyracerhd/v2/',   // 公開の伝言板（MQTT）で使う掲示板の名前の頭
+    directWait: 7,             // 部屋の返事が来てから、直接の通り道ができるまで待つ秒数。だめなら中継に切り替える
     routeTimeout: 12,          // 1つのルートで部屋に入れるまで待つ最長時間（秒）。だめなら次のルートへ
     // 通り道を探す手伝い（STUN）。家のWi-Fiの外側の住所を調べる
     iceServers: [
