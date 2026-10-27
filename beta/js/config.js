@@ -3,12 +3,12 @@
   保存場所   : /js
   役割       : すべての調整値とバージョン番号を1か所に集めたファイル
                （数字を書き換えるだけでゲームの調整ができるようにする）
-  バージョン : 2.3.0（Phase21：iPhone 対応。直接つながらないときの中継と、拡大の防止）
+  バージョン : 2.4.0（酔いにくいモード・iPhone の画質判定の修正）
 */
 
 export const CONFIG = {
   // 画面上中央に表示されるバージョン番号
-  VERSION: '2.3.0',
+  VERSION: '2.4.0',
 
   // ゲームループ
   loop: {
@@ -413,7 +413,17 @@ export const CONFIG = {
     heightFollow: 6,     // 高さを追いかける速さ
     fovSpeed: 6,         // 最高速のときに広がる画角（度）
     fovBoost: 10,        // ブースト中にさらに広がる画角（度）
-    fovFollow: 4         // 画角が変わる速さ
+    fovFollow: 4,        // 画角が変わる速さ
+    headingWeight: 1,    // カメラがレーサーの向きにどれだけ合わせるか（1 = ぴったり。小さいほどコースの向きに合わせ、ドリフトで振られない）
+    // 酔いにくいモード（設定）で上の値を置きかえる分：カメラの振れ・画角の変化・前後の動きを抑える
+    comfort: {
+      yawFollow: 3.2,
+      heightFollow: 3.5,
+      fovSpeed: 1.5,
+      fovBoost: 2.5,
+      distanceAtSpeed: 0.4,
+      headingWeight: 0.45
+    }
   },
 
   // みんなで対戦（js/net の各ファイルが使う）

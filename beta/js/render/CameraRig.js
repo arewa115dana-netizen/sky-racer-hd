@@ -4,7 +4,7 @@
   役割       : レーサーを後ろから追いかけるカメラ。
                向き・高さ・画角を少し遅れて追従させ、なめらかに見せる。
                速いときやブースト中は画角を広げてスピード感を出す
-  バージョン : 0.2.5（Phase2 Step2-5）
+  バージョン : 2.4.0（酔いにくいモード：カメラをコースの向き寄りにして、ドリフトで振られにくく）
 */
 
 import * as THREE from 'three';
@@ -21,7 +21,7 @@ export class CameraRig {
 
   // レーサーの位置へすぐに移動する（スタート時・復帰時）
   snap(racer) {
-    this.yaw = racer.renderYaw;
+    this.yaw = this.targetYaw(racer);
     this.height = racer.renderPos.y;
     this.fov = CONFIG.render.fov;
     this.apply(racer);
@@ -32,7 +32,7 @@ export class CameraRig {
     const c = CONFIG.camera;
 
     // 向き：近い方の回り方で追いかける
-    const diff = wrapAngle(racer.renderYaw - this.yaw);
+    const diff = wrapAngle(this.targetYaw(racer) - this.yaw);
     this.yaw += diff * smoothing(c.yawFollow, dt);
 
     // 高さ：空中区間（Phase6）でなめらかに上下させるため
@@ -45,6 +45,13 @@ export class CameraRig {
     this.fov += (targetFov - this.fov) * smoothing(c.fovFollow, dt);
 
     this.apply(racer);
+  }
+
+  // カメラが向きたい方向：レーサーの向きと、コースの向きの間（headingWeight = 1 ならレーサーの向き）
+  targetYaw(racer) {
+    const w = CONFIG.camera.headingWeight;
+    if (w >= 1 || racer.renderTrackYaw === undefined) return racer.renderYaw;
+    return racer.renderTrackYaw + wrapAngle(racer.renderYaw - racer.renderTrackYaw) * w;
   }
 
   // カメラの位置と向きを決める

@@ -4,7 +4,7 @@
   役割       : 画質の管理。端末に合わせて画質の段階（high / mid / low）を決め、
                FPSを見張って描画解像度を自動で上げ下げする。
                省電力モード（30FPS）の切り替えもここで持つ
-  バージョン : 0.11.3（Phase11 Step11-3）
+  バージョン : 2.4.0（iPhone・iPad を性能の低いスマホと間違えないように）
 */
 
 import { CONFIG } from '../config.js';
@@ -139,6 +139,11 @@ function detectLevel() {
   const touch = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
                 navigator.maxTouchPoints > 0;
   if (!touch) return 'high';                 // PC
+  // iPhone・iPad：Safari は個人を見分けにくくするため、CPUの数を少なめ（4）に答える。
+  // 実際は十分な性能があるので mid にする（重ければ自動で軽くなる）
+  const ua = navigator.userAgent || '';
+  const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (iOS) return 'mid';
   const cores = navigator.hardwareConcurrency || 4;
   const memory = navigator.deviceMemory || 4; // 対応していない端末は4とみなす
   if (cores >= 6 && memory >= 4) return 'mid';

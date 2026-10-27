@@ -32,6 +32,9 @@ const SETTINGS_KEY = 'skyRacer.settings';
 // デバッグ表示の設定だけ初期値（OFF）に戻す
 const SETTINGS_FORMAT = 2;
 
+// カメラのふだんの値（酔いにくいモードを切ったときに戻す）
+const BASE_CAMERA = { ...CONFIG.camera };
+
 // CPUの腕前の元の値（難しさに合わせて、毎回ここから計算し直す）
 const BASE_SKILLS = CONFIG.ai.personalities.map((p) => p.skill);
 
@@ -85,6 +88,12 @@ export class Screens {
       if (g.postfx.enabled !== (value && this.canPostfx())) g.postfx.toggle();
     } else if (key === 'difficulty') {
       applyDifficulty(value);
+    } else if (key === 'comfort') {
+      // 酔いにくいモード：カメラの値を入れかえる
+      const src = value ? { ...BASE_CAMERA, ...CONFIG.camera.comfort } : BASE_CAMERA;
+      for (const k of Object.keys(src)) {
+        if (k !== 'comfort') CONFIG.camera[k] = src[k];
+      }
     } else if (key === 'debug') {
       // メニュー中は隠したまま。レースに戻ったときに反映される
       if (g.state === 'RACE' && !this.menu) g.debug.setVisible(value);
@@ -684,6 +693,7 @@ function defaultSettings() {
     powerSave: CONFIG.quality.powerSave,
     postfx: CONFIG.postfx.enabled,
     debug: CONFIG.debug.show,
+    comfort: false,
     difficulty: CONFIG.difficulty.default
   };
 }

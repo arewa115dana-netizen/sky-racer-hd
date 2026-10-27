@@ -3,8 +3,8 @@
   保存場所   : /js/ui
   役割       : 一時停止メニューと設定画面。
                  一時停止 … 続ける／やり直す／設定／キャラ選択へ／タイトルへ
-                 設定     … 音量・BGM・省電力モード・仕上げ処理・デバッグ表示（変えるとすぐ反映され、保存される）
-  バージョン : 1.18.0（Phase18：みんなで対戦では「やり直す」などの代わりに「部屋を出る」）
+                 設定     … 音量・BGM・省電力モード・仕上げ処理・酔いにくいモード・デバッグ表示（変えるとすぐ反映され、保存される）
+  バージョン : 2.4.0（設定に「酔いにくいモード」）
   メモ       : ボタンが押されたときの中身は Screens.js から渡された関数が行う（この画面は見た目と操作だけ）。
                画面に収まらないときは、中身の箱ごと自動で縮める
 */
@@ -102,6 +102,8 @@ export class PauseMenu {
       toggle('powerSave', s.powerSave) + '</div>' +
       '  <div class="menu-row"><span class="menu-label">仕上げ処理<small>上下のぼかし・光のにじみ・色づくり</small></span>' +
       toggle('postfx', s.postfx && this.o.canPostfx, !this.o.canPostfx) + '</div>' +
+      '  <div class="menu-row"><span class="menu-label">酔いにくいモード<small>カメラの揺れ・画角の変化を抑える</small></span>' +
+      toggle('comfort', s.comfort) + '</div>' +
       '  <div class="menu-row"><span class="menu-label">デバッグ表示<small>左上のFPSなどの表示</small></span>' +
       toggle('debug', s.debug) + '</div>' +
       '</div>' +

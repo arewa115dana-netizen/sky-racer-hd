@@ -388,7 +388,8 @@ export class Racer {
     const angle = this.prevAngle + (this.angle - this.prevAngle) * alpha;
     this.track.toWorld(s, x, y, this.renderPos);
     // 右向きのずれは、画面上では左回り（yaw）と逆向き
-    this.renderYaw = this.track.yawAt(s) - angle;
+    this.renderTrackYaw = this.track.yawAt(s);   // その場所のコースの向き（酔いにくいモードのカメラが使う）
+    this.renderYaw = this.renderTrackYaw - angle;
   }
 
   // 今の位置を画面上の座標で out に入れる

@@ -16,7 +16,7 @@
   メモ       : 保存場所の名前（CACHE_NAME）を変えると、古い保存分はすべて消えて作り直される
 */
 
-const CACHE_NAME = 'sky-racer-v2-3';
+const CACHE_NAME = 'sky-racer-v2-4';
 
 // 通信が遅いときに、保存分に切り替えるまでの秒数（保存分がないときは通信を待ち続ける）
 const NETWORK_TIMEOUT = 4;
