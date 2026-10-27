@@ -7,7 +7,7 @@
                  ・空中の道 … 白く光る点線（輪っかのリングの道しるべ）
                  ・スタート … 白い線
                わざと粗い解像度で描いて拡大し、ゲームのドット絵の雰囲気に合わせる
-  バージョン : 2.6.0（新規）
+  バージョン : 2.6.1（片付けるときに先に隠す。白い枠とバッテンの顔が見えていた）
   メモ       : ゲーム本体とは別の小さな描画（WebGL）を使う。画面を閉じるときに dispose で必ず片付ける。
                コースの模型は一度作ったら取っておく（選び直しても作り直さない）
 */
@@ -114,6 +114,9 @@ export class CourseMiniature {
   }
 
   dispose() {
+    // 先に隠す。描く仕組みを片付けた後の canvas は、端末によって「白い枠にバッテンの顔」
+    // （描けなくなったときの印）を出すため、画面が消えていく間にそれが見えないように
+    this.canvas.style.visibility = 'hidden';
     this.running = false;
     cancelAnimationFrame(this.rafId);
     for (const model of this.models.values()) {

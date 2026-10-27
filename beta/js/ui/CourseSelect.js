@@ -66,7 +66,7 @@ export class CourseSelect {
     const w = inner.offsetWidth;
     const h = inner.offsetHeight;
     if (!w || !h) return;
-    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - margin * 2) / h);
+    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - CONFIG.ui.backBarHeight - margin * 2) / h);
     if (scale < 1) inner.style.transform = 'scale(' + scale.toFixed(3) + ')';
   }
 

@@ -2570,3 +2570,19 @@ body.in-menu #touch-ui {
   font-size: 13px;
   color: var(--px-gold);
 }
+
+/* ---- 左上の「◀ もどる」と中身が重ならないように（v2.6.1） ----
+   画面の上に、ボタンの高さぶんの場所をあけてから、残りの場所の真ん中に中身を置く */
+#charselect,
+#courseselect,
+#lobby {
+  justify-content: center;
+  padding-top: 58px;
+  box-sizing: border-box;
+}
+
+#charselect .cs-inner,
+#courseselect .cs-inner,
+#lobby .lb-inner {
+  padding-top: 0;
+}
