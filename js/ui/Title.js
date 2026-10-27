@@ -5,7 +5,7 @@
                画面のどこかをタップ（PCはクリック・Enter・スペース）したら onStart を呼ぶ。
                最初のタップで音が使えるようになる（スマホで最初の音が鳴らない問題の解決）。
                左下の「遊び方」ボタンで、操作とコツの説明を開く
-  バージョン : 2.1.0（Phase18：遊び方に「みんなで対戦」を追加）
+  バージョン : 2.5.0（新しいデザイン：夕暮れのドット。遊び方はモード選択からも開ける）
   メモ       : 後ろの景色（コースを飛ぶカメラ）は Game.js が動かす。
                遊び方を開いている間は、タップしてもスタートしない（「閉じる」で戻る）
 */
@@ -38,13 +38,51 @@ const HOWTO_HTML =
   '        <li><b>スタートダッシュ</b>：「GO!」の直前にブーストを押す</li>' +
   '        <li><b>柵のない所</b>：端から出ると落ちるので注意</li>' +
   '        <li><b>坂道</b>：上りは遅く、下りは速い。<b class="c-blue">氷</b>の上はすべる</li>' +
-  '        <li><b class="c-gold">グランプリ</b>：コース選択の「グランプリ」で、続けて走ってポイントで競う</li>' +
-  '        <li><b class="c-blue">みんなで対戦</b>：コース選択の「みんなで対戦」で部屋を作り、友達と最大4人で走る</li>' +
+  '        <li><b class="c-gold">グランプリ</b>：モード選択の「グランプリ」で、続けて走ってポイントで競う</li>' +
+  '        <li><b class="c-blue">みんなで対戦</b>：モード選択の「みんなで対戦」で部屋を作り、友達と最大4人で走る</li>' +
   '      </ul>' +
   '    </div>' +
   '  </div>' +
   '  <button class="howto-close" type="button">閉じる</button>' +
   '</div>';
+
+// 遊び方を、いまの画面の上に重ねて出す（モード選択から）。閉じたら onClose を呼ぶ
+export function openHowto(onClose) {
+  const el = document.createElement('div');
+  el.className = 'screen howto-screen';
+  el.innerHTML = '<div class="howto open">' + HOWTO_HTML + '</div>';
+  document.body.appendChild(el);
+  const inner = el.querySelector('.howto-inner');
+  const fit = () => {
+    inner.style.transform = '';
+    const margin = CONFIG.ui.screenMargin;
+    const w = inner.offsetWidth;
+    const h = inner.offsetHeight;
+    if (!w || !h) return;
+    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - margin * 2) / h);
+    if (scale < 1) inner.style.transform = 'scale(' + scale.toFixed(3) + ')';
+  };
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', fit);
+    el.remove();
+    if (onClose) onClose();
+  };
+  const onKey = (e) => {
+    if (e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+  };
+  el.querySelector('.howto-close').addEventListener('click', close);
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', fit);
+  fit();
+}
 
 export class Title {
   /**
@@ -64,8 +102,8 @@ export class Title {
       '<span class="title-sky">SKY RACER</span><span class="title-hd">HD</span>' +
       '</div>' +
       '<div class="title-sub">天空グランプリ</div>' +
-      '<div class="title-start">タップしてスタート</div>' +
-      '<button class="title-howto-btn" type="button">？ 遊び方</button>' +
+      '<div class="title-start">― タップしてはじめる ―</div>' +
+      '<button class="title-howto-btn" type="button">遊び方</button>' +
       '<div class="howto">' + HOWTO_HTML + '</div>' +
       '<div class="title-foot">v' + CONFIG.VERSION + '</div>';
     document.body.appendChild(el);

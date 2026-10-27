@@ -4,7 +4,7 @@
   役割       : サービスワーカー。
                  1. 通信できるとき … GitHub の最新版を必ず使う（古いファイルが使われ続ける問題を防ぐ）
                  2. 通信できないとき … スマホに保存しておいた分で動かす（オフラインでも遊べる）
-  バージョン : 2.1.0（Phase18：みんなで対戦のファイルを追加。保存場所を作り直す）
+  バージョン : 2.6.0（コースのミニチュアのファイルを追加。保存場所を作り直す）
 
   しくみ
     ・このサイト自身のファイル（html / css / js / 画像）
@@ -16,7 +16,7 @@
   メモ       : 保存場所の名前（CACHE_NAME）を変えると、古い保存分はすべて消えて作り直される
 */
 
-const CACHE_NAME = 'sky-racer-v2-4';
+const CACHE_NAME = 'sky-racer-v2-6-1';
 
 // 通信が遅いときに、保存分に切り替えるまでの秒数（保存分がないときは通信を待ち続ける）
 const NETWORK_TIMEOUT = 4;
@@ -34,6 +34,9 @@ const PRECACHE = [
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
   'icons/apple-touch-icon.png',
+  'img/mode_single.png',
+  'img/mode_cup.png',
+  'img/mode_online.png',
   'js/main.js',
   'js/config.js',
   'js/ai/AIController.js',
@@ -79,11 +82,13 @@ const PRECACHE = [
   'js/systems/RaceSession.js',
   'js/systems/Records.js',
   'js/ui/CharacterSelect.js',
+  'js/ui/CourseMiniature.js',
   'js/ui/CourseSelect.js',
   'js/ui/GrandPrixResult.js',
   'js/ui/HUD.js',
   'js/ui/Lobby.js',
   'js/ui/Menu.js',
+  'js/ui/ModeSelect.js',
   'js/ui/Title.js',
   'js/world/Buildings.js',
   'js/world/CourseBuilder.js',

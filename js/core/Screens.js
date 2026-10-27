@@ -1,12 +1,13 @@
 /*
   ファイル名 : Screens.js
   保存場所   : /js/core
-  役割       : 画面の流れの管理。タイトル → キャラ選択 → コース選択 → レース、と一時停止メニュー。
+  役割       : 画面の流れの管理。タイトル → モード選択 →（コース選択／カップ選択／みんなで対戦）→ レース、と一時停止メニュー。
+               キャラ変更・設定・遊び方はモード選択から開く。
                グランプリ（カップ）では、レース → 結果（得点）→ 紹介カード → 次のレース … → 最終結果。
                設定（音量・BGM・省電力・仕上げ処理・デバッグ表示・難しさ）と、選んだキャラ・コースを
                スマホに保存して反映する。
                画面に合わせてBGMを切り替える（タイトル・選択画面はタイトル曲、レースはコースの曲）
-  バージョン : 1.20.0（Phase20：届いたスタートの知らせの確認）
+  バージョン : 2.5.0（新しいデザイン：モード選択画面を中心にした流れ）
   メモ       : Game.js が長くなったので、画面の切り替えをここに分けた。
                Game.js はこのクラスを1つ持ち、レースの開始（startRace）だけを自分で行う
 */
@@ -14,7 +15,8 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { CHARACTERS } from '../entities/Characters.js';
-import { Title } from '../ui/Title.js';
+import { Title, openHowto } from '../ui/Title.js';
+import { ModeSelect } from '../ui/ModeSelect.js';
 import { CharacterSelect } from '../ui/CharacterSelect.js';
 import { CourseSelect } from '../ui/CourseSelect.js';
 import { COURSES, CUPS, courseIndexOf } from '../courses/Courses.js';
@@ -35,6 +37,9 @@ const SETTINGS_FORMAT = 2;
 // カメラのふだんの値（酔いにくいモードを切ったときに戻す）
 const BASE_CAMERA = { ...CONFIG.camera };
 
+// 難しさの一覧（設定の画面に出す）
+const DIFFICULTIES = CONFIG.difficulty.order.map((key) => ({ key, label: CONFIG.difficulty.levels[key].label }));
+
 // CPUの腕前の元の値（難しさに合わせて、毎回ここから計算し直す）
 const BASE_SKILLS = CONFIG.ai.personalities.map((p) => p.skill);
 
@@ -53,7 +58,7 @@ export class Screens {
     this.charIndex = loadCharIndex();
     this.courseIndex = loadCourseIndex();
     this.gp = null;               // グランプリ中なら、その進み具合
-    this.selectMode = 'course';   // コース選択画面で前回開いていたタブ
+    this.lastMode = 'single';     // モード選択で前回選んだカード
     this.room = null;             // みんなで対戦の部屋（入っている間だけ）
     this.lobby = null;            // みんなで対戦の画面（出ている間だけ）
     this.settings = loadSettings();
@@ -135,7 +140,55 @@ export class Screens {
       this.title = null;
       // タップ（指を離した瞬間）の中で、もう一度確実に音を再開する
       g.audio.unlock();
-      this.showCharacterSelect();
+      this.showModeSelect();
+    });
+  }
+
+  // ---- モード選択（タイトルの次。ここから各画面へ） ----
+  showModeSelect() {
+    const g = this.game;
+    this.gp = null;
+    this.leaveRoomQuietly();
+    if (g.session) {
+      g.session.dispose();
+      g.session = null;
+    }
+    this.enterMenuMode();
+    g.setState('SELECT');
+    g.audio.playMusic('title');
+    const select = new ModeSelect({
+      mode: this.lastMode,
+      character: CHARACTERS[this.charIndex],
+      charIndex: this.charIndex,
+      atlasCanvas: g.atlas.texture.image,
+      onSound: (name) => g.audio.play(name),
+      onMode: (key) => {
+        this.lastMode = key;
+        if (key === 'online') this.showOnline();
+        else this.showCourseSelect(key === 'cup' ? 'cup' : 'course');
+      },
+      onCharacter: () => this.showCharacterSelect(),
+      onSettings: () => {
+        // 設定は上に重ねて出す（閉じたらモード選択に戻る）
+        select.blocked = true;
+        this.menu = new PauseMenu({
+          settingsOnly: true,
+          settings: { ...this.settings },
+          canPostfx: this.canPostfx(),
+          difficulties: DIFFICULTIES,
+          onResume: () => {
+            this.menu.close();
+            this.menu = null;
+            select.blocked = false;
+          },
+          onChange: (key, value) => this.setSetting(key, value)
+        });
+      },
+      onHowto: () => {
+        select.blocked = true;
+        openHowto(() => { select.blocked = false; });
+      },
+      onBack: () => this.showTitle()
     });
   }
 
@@ -158,18 +211,17 @@ export class Screens {
       onDecide: (index) => {
         this.charIndex = index;
         saveCharIndex(index);
-        this.showCourseSelect();
+        this.showModeSelect();
       },
-      onBack: () => this.showTitle(),
+      onBack: () => this.showModeSelect(),
       onSound: (name) => g.audio.play(name),   // 'select'（選ぶ）・'decide'（決定）
-      difficulties: CONFIG.difficulty.order.map((key) => ({ key, label: CONFIG.difficulty.levels[key].label })),
-      difficulty: this.settings.difficulty,
-      onDifficulty: (key) => this.setSetting('difficulty', key)
+      difficulties: []   // 難しさは設定の画面へ移した
     });
   }
 
   // ---- コース選択（キャラを決めた後） ----
-  showCourseSelect() {
+  // mode = 'course'（ひとりで走る）または 'cup'（グランプリ）
+  showCourseSelect(mode) {
     const g = this.game;
     this.enterMenuMode();
     g.setState('SELECT');
@@ -179,17 +231,15 @@ export class Screens {
       getBest: (id) => loadBest(id),
       cups: CUPS,
       getCupBest: (id) => loadCupBest(id),
-      mode: this.selectMode,
+      mode: mode || 'course',
+      fixed: true,
       onDecideCup: (cupIndex) => {
-        this.selectMode = 'cup';
         select.close();
         this.startGp(cupIndex);
       },
       onSound: (name) => g.audio.play(name),
-      onBack: () => this.showCharacterSelect(),
-      onOnline: () => this.showOnline(),
+      onBack: () => this.showModeSelect(),
       onDecide: (index) => {
-        this.selectMode = 'course';
         this.gp = null;
         this.courseIndex = index;
         saveCourseIndex(index);
@@ -285,7 +335,7 @@ export class Screens {
       newRecord,
       atlasCanvas: g.atlas.texture.image,
       onAgain: () => this.startGp(CUPS.indexOf(gp.cup)),
-      onTitle: () => this.showTitle()
+      onTitle: () => this.showModeSelect()
     });
   }
 
@@ -309,7 +359,7 @@ export class Screens {
       onSound: (name) => g.audio.play(name),
       onBack: () => {
         this.closeLobby();
-        this.showCourseSelect();
+        this.showModeSelect();
       },
       onCreate: (name) => this.createRoom(name),
       onJoin: (name, code) => this.joinRoom(name, code),
@@ -589,6 +639,7 @@ export class Screens {
       onLeave: () => this.leaveRoom(),
       settings: { ...this.settings },
       canPostfx: this.canPostfx(),
+      difficulties: DIFFICULTIES,
       onResume: () => this.closePauseMenu(true),
       onRetry: () => {
         this.closePauseMenu(true);   // 操作部品を戻してから、最初からやり直す
@@ -597,7 +648,7 @@ export class Screens {
       },
       onSelect: () => {
         this.closePauseMenu(false);
-        this.showCharacterSelect();
+        this.showModeSelect();
       },
       onTitle: () => {
         this.closePauseMenu(false);

@@ -177,7 +177,7 @@ export class HUD {
     } else {
       html += '<div class="results-buttons">' +
         '<button class="results-btn main" type="button" data-action="retry">もう一度</button>' +
-        '<button class="results-btn" type="button" data-action="select">キャラ選択</button>' +
+        '<button class="results-btn" type="button" data-action="select">メニュー</button>' +
         '<button class="results-btn" type="button" data-action="title">タイトル</button>' +
         '</div></div>';
     }

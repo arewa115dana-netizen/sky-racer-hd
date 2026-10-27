@@ -4,9 +4,9 @@
   役割       : ゲーム全体の司令塔（土台）。描画・ループ・入力・画質・音を準備し、
                選ばれたコースの世界（World：コース・背景・光・空気感）を読み込み、
                1レース分のまとまり（RaceSession）を作って毎回動かす
-  バージョン : 1.18.0（Phase19：みんなで対戦のレース）
+  バージョン : 2.5.0（描き方の準備中にレースを片付けても止まらないように）
   メモ       : レースの中身（6人・CPU・押し合い・順位・HUD）は RaceSession.js が担当。
-               画面の流れ（タイトル → キャラ選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
+               画面の流れ（タイトル → モード選択 → レース、一時停止メニュー、設定の保存）は Screens.js が担当。
                PCでは数字キー 1〜6 でキャラクター切り替え（レース中）、P で省電力モード、
                F で仕上げ処理の ON / OFF（どちらも設定に保存される）
 */
@@ -165,7 +165,7 @@ export class Game {
       debug: this.debug,
       playerCharIndex,
       onRetry: () => this.startRace(this.screens.charIndex, gp),
-      onSelect: () => this.screens.showCharacterSelect(),
+      onSelect: () => this.screens.showModeSelect(),
       onTitle: () => this.screens.showTitle()
     });
     this.setState('RACE');
@@ -203,12 +203,20 @@ export class Game {
     try {
       // compileAsync は「準備が本当に終わるまで」裏で待つ版（端末が裏で並行して準備できる）。
       // ない場合は普通の compile を使う
-      if (this.renderer.compileAsync) {
-        this.renderer.compileAsync(this.scene, this.camera)
-          .then(() => this.finishPrograms())
-          .catch(() => {});
-      } else {
-        this.renderer.compile(this.scene, this.camera);
+      // three.js の compileAsync と同じことを自分で行う。準備の途中でレースを片付けて（メニューへ戻るなど）
+      // 物が消えても止まらないよう、消えた物は待たずに飛ばす（compileAsync はここでエラーになる）
+      const materials = this.renderer.compile(this.scene, this.camera);
+      const props = this.renderer.properties;
+      if (materials && props && materials.size !== undefined) {
+        const check = () => {
+          for (const m of Array.from(materials)) {
+            const program = props.get(m).currentProgram;
+            if (!program || program.isReady()) materials.delete(m);
+          }
+          if (materials.size === 0) this.finishPrograms();
+          else setTimeout(check, 10);
+        };
+        check();
       }
       // 画像（模様・ドット絵）も、初めて映った瞬間ではなく今のうちに送っておく
       const done = new Set();

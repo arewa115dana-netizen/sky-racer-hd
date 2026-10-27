@@ -5,7 +5,7 @@
                  1コース   … 選んだコースの形を上から見た地図で大きく表示し、名前・ひとこと・難しさの★・自己ベストを見せる
                  グランプリ … カップ（続けて走るコースの組）を選ぶ。走るコースと、これまでの最高順位（トロフィー）を見せる
                下のアイコンで選んで「決定」。準備中のコースは「？」で表示し、選べない
-  バージョン : 1.18.0（Phase18：「みんなで対戦」のタブ）
+  バージョン : 2.6.0（コースは、くるくる回る立体のミニチュアで見せる）
   操作       : スマホ … アイコンをタップ／◀ ▶ ／「決定」／左上「◀ キャラ選択」
                PC     … ← → で選ぶ、Enter・スペースで決定、Esc でキャラ選択へ
   メモ       : 決定したあと、コースの読み込み中は「準備中…」を出す（showLoading）。
@@ -13,6 +13,7 @@
 */
 
 import { CONFIG } from '../config.js';
+import { CourseMiniature } from './CourseMiniature.js';
 
 export class CourseSelect {
   /**
@@ -44,8 +45,10 @@ export class CourseSelect {
     this.onSound = o.onSound || (() => {});
     this.onOnline = o.onOnline || null;
     this.done = false;
+    this.fixed = !!o.fixed;   // true なら上のタブを出さない（モード選択で決めてきた）
 
     this.build();
+    if (this.fixed) this.el.classList.add('fixed');
     this.setMode(this.mode, true);
 
     this.onKey = (e) => this.handleKey(e);
@@ -63,7 +66,7 @@ export class CourseSelect {
     const w = inner.offsetWidth;
     const h = inner.offsetHeight;
     if (!w || !h) return;
-    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - margin * 2) / h);
+    const scale = Math.min(1, (window.innerWidth - margin * 2) / w, (window.innerHeight - CONFIG.ui.backBarHeight - margin * 2) / h);
     if (scale < 1) inner.style.transform = 'scale(' + scale.toFixed(3) + ')';
   }
 
@@ -73,7 +76,7 @@ export class CourseSelect {
     el.id = 'courseselect';
     el.className = 'screen';
     el.innerHTML =
-      '<button class="cs-back" type="button">◀ キャラ選択</button>' +
+      '<button class="cs-back" type="button">◀ もどる</button>' +
       '<div class="cs-inner">' +
       '<div class="co-tabs">' +
       '  <button class="co-tab" type="button" data-mode="course">1コース</button>' +
@@ -81,7 +84,7 @@ export class CourseSelect {
       '  <button class="co-tab co-tab-online" type="button" data-mode="online">みんなで対戦</button>' +
       '</div>' +
       '<div class="cs-main">' +
-      '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas></div>' +
+      '  <div class="cs-portrait co-map-box"><canvas class="co-map" width="200" height="200"></canvas><canvas class="co-mini"></canvas></div>' +
       '  <div class="cs-info">' +
       '    <div class="cs-name"></div>' +
       '    <div class="co-stars"></div>' +
@@ -102,6 +105,9 @@ export class CourseSelect {
 
     this.inner = el.querySelector('.cs-inner');
     this.mapCanvas = el.querySelector('.co-map');
+    // コースの立体ミニチュア（描けない端末では、今までどおり上から見た地図）
+    this.mini = new CourseMiniature(el.querySelector('.co-mini'));
+    if (!this.mini.renderer) el.classList.add('no-mini');
     this.nameEl = el.querySelector('.cs-name');
     this.starsEl = el.querySelector('.co-stars');
     this.descEl = el.querySelector('.cs-desc');
@@ -177,7 +183,8 @@ export class CourseSelect {
       : '';
     this.decideBtn.disabled = !course.ready;
     this.iconButtons.forEach((b, k) => b.classList.toggle('selected', k === i));
-    drawMap(this.mapCanvas, course, 8);
+    if (this.mini.renderer) this.mini.setCourse(course);
+    else drawMap(this.mapCanvas, course, 8);
     if (!silent) this.onSound('select');
   }
 
@@ -237,7 +244,7 @@ export class CourseSelect {
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.move(1);
     else if (e.code === 'Enter' || e.code === 'Space') this.decide();
     else if (e.code === 'Escape') this.back();
-    else if (e.code === 'Tab') {
+    else if (e.code === 'Tab' && !this.fixed) {
       e.preventDefault();
       this.setMode(this.mode === 'cup' ? 'course' : 'cup');
     }
@@ -245,6 +252,10 @@ export class CourseSelect {
 
   // ふわっと消してから取り除く
   close() {
+    if (this.mini) {
+      this.mini.dispose();
+      this.mini = null;
+    }
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('resize', this.onResize);
     this.el.classList.add('hide');
